@@ -65,6 +65,68 @@
 
 ---
 
+# Database Layout
+
+Using either Postgres or SQLAlchemy
+
+### Schema: `market_data`
+
+* `ohlcv`
+
+  * id (PK)
+  * exchange (e.g., "kraken")
+  * symbol (e.g., "BTC/USDT")
+  * timeframe (e.g., "1h")
+  * timestamp (UTC)
+  * open, high, low, close, volume
+
+---
+
+### Schema: `trading_logs`
+
+* `signals`
+
+  * id (PK)
+  * timestamp
+  * symbol
+  * signal (buy/sell/hold)
+  * reasoning (text, e.g., “short MA > long MA”)
+  * indicators (JSON, e.g., `{"short_ma": 30000, "long_ma": 29500}`)
+
+* `orders`
+
+  * id (PK)
+  * timestamp
+  * exchange\_order\_id
+  * symbol
+  * side (buy/sell)
+  * size
+  * price
+  * status (submitted, filled, rejected)
+  * pnl (nullable until closed)
+
+---
+
+## Where This Fits in The Bot
+
+1. **Data ingestion** (`data_handler.py`)
+
+   * Fetches OHLCV from Kraken (via `ccxt`).
+   * Stores it in `market_data.ohlcv`.
+
+2. **Signal generation** (`strategies/*.py`)
+
+   * Strategy computes signals and reasoning.
+   * Logs signal → `trading_logs.signals`.
+
+3. **Execution** (`trader.py`)
+
+   * Places order on Kraken paper trading.
+   * Logs order → `trading_logs.orders`.
+
+
+---
+
 # Overview
 
 * **Paper Trading** → Kraken (testnet) + ccxt = execution & data, `trader.py` active.

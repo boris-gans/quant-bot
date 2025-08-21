@@ -37,6 +37,3 @@ if __name__ == "__main__":
 
 # backtester
 """Runs strategies on historical data offline without exchange"""
-
-
-# BOT FLOW
