@@ -10,9 +10,11 @@ class ExchangeWrapper:
 
     BASE_URL = "https://futures.kraken.com/derivatives/api/v3"  # Market Data API root
 
-    def __init__(self, exchange_name=EXCHANGE):
+    def __init__(self, logger, exchange_name=EXCHANGE):
         self.exchange_name = exchange_name
         self.exchange = self._init_exchange()
+        self.logger = logger
+        self.logger.info(f"Initialized ExchangeWrapper for exchange {self.exchange_name}")
 
     def _init_exchange(self):
         exchange_class = getattr(ccxt, self.exchange_name)
@@ -44,22 +46,58 @@ class ExchangeWrapper:
 
     def get_trade_history(self, symbol, last_time=None):
         """Completed trades for a symbol (useful for backtests, slippage models)."""
+        if not last_time:
+            self.logger.error("last_time parameter is required for get_trade_history")
+            return None
+        
         endpoint = f"{self.BASE_URL}/history"
-        params = {"symbol": symbol}
-        if last_time:
-            params["lastTime"] = last_time
-        return requests.get(endpoint, params=params).json()
+        params = {"symbol": symbol, "lastTime": last_time}
+        self.logger.info(f"Fetching trade history for {symbol} since {last_time}")
+
+        try:
+            response = requests.get(endpoint, params=params)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            self.logger.exception(f"Failed to fetch trade history for {symbol}: {e}")
+            return None
 
     def get_order_book(self, symbol):
         """Full snapshot of bids/asks (depth, imbalance, liquidity)."""
+        if not symbol:
+            self.logger.error("symbol parameter is required for get_order_book")
+            return None
         endpoint = f"{self.BASE_URL}/orderbook"
-        return requests.get(endpoint, params={"symbol": symbol}).json()
+        params = {"symbol": symbol}
+        self.logger.info(f"Fetching orderbook for {symbol}")
 
-    def get_tickers(self):
+        try:
+            response = requests.get(endpoint, params=params)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            self.logger.exception(f"Failed to fetch orderbook for {symbol}: {e}")
+            return None
+
+    def get_tickers(self, contract_type=None):
         """Market data for ALL contracts + indices (broad monitoring)."""
         endpoint = f"{self.BASE_URL}/tickers"
-        return requests.get(endpoint).json()
+        if contract_type: 
+            params = {"contractType": contract_type}
+            self.logger.info(f"Fetching market data for contract type {contract_type}")
+        else:
+            params = None
+            self.logger.info(f"Fetching market data for all contract types")
 
+        try:
+            response = requests.get(endpoint, params=params)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            self.logger.exception(f"Failed to fetch market data")
+            return None
+
+# ----------------------------------------
     def get_ticker(self, symbol):
         """Market data for a single contract/index (lighter request)."""
         endpoint = f"{self.BASE_URL}/ticker"

@@ -1,8 +1,10 @@
 class Trader:
     """Takes a signal (+ additional rules) and decides whether to place an order via exchange_wrapper"""
 
-    def __init__(self, exchange_wrapper):
+    def __init__(self, exchange_wrapper, logger):
         self.exchange = exchange_wrapper
+        self.logger = logger
+        self.logger.info("Initialized Trader")
 
     def execute_signal(self, symbol, signal, amount=0.001):
         if signal == 1:

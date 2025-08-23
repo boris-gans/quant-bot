@@ -3,20 +3,24 @@ from data.data_handler import DataHandler
 from strategies.moving_average import MovingAverageStrategy
 from trader.trader import Trader
 from config.settings import SYMBOL, TIMEFRAME
+from utils.logger import Logger
 
 def main():
+    # Init logger
+    log = Logger().get_logger()
+
     # Init exchange + data
-    exchange = ExchangeWrapper()
-    data_handler = DataHandler(exchange)
+    exchange = ExchangeWrapper(log)
+    data_handler = DataHandler(exchange, log)
     df = data_handler.get_historical_data(SYMBOL, TIMEFRAME, limit=200)
 
     # Apply strategy
-    strategy = MovingAverageStrategy(short_window=10, long_window=30)
+    strategy = MovingAverageStrategy(short_window=10, long_window=30, logger=log)
     df = strategy.generate_signals(df)
     last_signal = df.iloc[-1]["signal"]
 
     # Execute trade
-    trader = Trader(exchange)
+    trader = Trader(exchange, log)
     trader.execute_signal(SYMBOL, last_signal)
 
 if __name__ == "__main__":
