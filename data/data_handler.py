@@ -255,6 +255,57 @@ class DataHandler:
 
         return True
 
+    def save_trade_history(self, symbol: str, trade_data: dict):
+        with self.Session() as session:
+            try:
+                # Find instrument id
+                instrument = session.query(Instrument).filter_by(symbol=symbol).first()
+                if not instrument:
+                    self.logger.warning(f"No instrument found for symbol {symbol}")
+                    return False
+
+                # Delete old trade history for this instrument if it exists
+                session.query(TradeHistory).filter_by(instrument_id=instrument.id).delete()
+                self.logger.info(f"Cleared old trade history for {symbol}")
+
+                # Prepare new trade entries
+                trades_to_add = []
+                for trade in trade_data.get("history", []):
+                    trade_entry = TradeHistory(
+                        instrument_id=instrument.id,
+                        timestamp=datetime.fromisoformat(trade["time"].replace("Z", "+00:00")),
+                        price=trade["price"],
+                        size=trade["size"],
+                        side=trade["side"],
+                        type=trade["type"],
+                    )
+                    trades_to_add.append(trade_entry)
+
+                # Bulk insert
+                session.bulk_save_objects(trades_to_add)
+                session.commit()
+
+                self.logger.info(f"Inserted {len(trades_to_add)} trades for {symbol}")
+                return True
+
+            except SQLAlchemyError as e:
+                session.rollback()
+                self.logger.error(f"Failed to save trade history for {symbol}: {e}")
+                return False
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     def add_trade(self, trade_data: dict):
         """Insert a trade into trade_history"""
         with self.Session() as session:
