@@ -122,29 +122,29 @@ class Ticker(Base):
 
     # price info
     last = Column(Float, nullable=True)
-    last_time = Column(TIMESTAMP, nullable=True)
-    mark_price = Column(Float, nullable=True)
+    lastTime = Column(TIMESTAMP, nullable=True)
+    markPrice = Column(Float, nullable=True)
     bid = Column(Float, nullable=True)
-    bid_size = Column(Float, nullable=True)
+    bidSize = Column(Float, nullable=True)
     ask = Column(Float, nullable=True)
-    ask_size = Column(Float, nullable=True)
+    askSize = Column(Float, nullable=True)
     open24h = Column(Float, nullable=True)
     high24h = Column(Float, nullable=True)
     low24h = Column(Float, nullable=True)
-    last_size = Column(Float, nullable=True)
-    index_price = Column(Float, nullable=True)
+    lastSize = Column(Float, nullable=True)
+    indexPrice = Column(Float, nullable=True)
     
     # trading info
     vol24h = Column(Float, nullable=True)
-    volume_quote = Column(Float, nullable=True)
-    open_interest = Column(Float, nullable=True)
-    funding_rate = Column(Float, nullable=True)
-    funding_rate_prediction = Column(Float, nullable=True)
+    volumeQuote = Column(Float, nullable=True)
+    openInterest = Column(Float, nullable=True)
+    fundingRate = Column(Float, nullable=True)
+    fundingRatePrediction = Column(Float, nullable=True)
     change24h = Column(Float, nullable=True)
     
     # status flags
     suspended = Column(Boolean, nullable=True)
-    post_only = Column(Boolean, nullable=True)
+    postOnly = Column(Boolean, nullable=True)
     tag = Column(String, nullable=True)
     pair = Column(String, nullable=True)
 
@@ -255,6 +255,88 @@ class DataHandler:
 
         return True
 
+
+    def save_tickers(self, ticker_data: dict):
+
+        with self.Session() as session:
+            try:
+                tickers = []
+
+                # Handles both get_ticker and get_ticker_list
+                if "ticker" in ticker_data:
+                    tickers = [ticker_data["ticker"]]
+                elif "tickers" in ticker_data:
+                    tickers = ticker_data["tickers"]
+
+                if not tickers:
+                    self.logger.warning("No ticker data to save")
+                    return False
+
+                # Map symbols to instrument IDs
+                symbols = [t["symbol"] for t in tickers if t.get("symbol")]
+                instruments = session.query(Instrument).filter(Instrument.symbol.in_(symbols)).all()
+                instrument_map = {inst.symbol: inst.id for inst in instruments}
+
+                if not instrument_map:
+                    self.logger.warning("No matching instruments found for provided tickers")
+                    return False
+
+                # Delete existing tickers for provided instruments
+                session.query(Ticker).filter(Ticker.instrument_id.in_(instrument_map.values())).delete(synchronize_session=False)
+
+                tickers_to_add = []
+                for t in tickers:
+                    symbol = t["symbol"]
+                    instrument_id = instrument_map.get(symbol)
+                    if not instrument_id:
+                        continue  # skip
+                    
+                    # safely access and convert lastTime
+                    last_time_str = t.get("lastTime")
+                    last_time = None
+                    if last_time_str:
+                        last_time = datetime.fromisoformat(last_time_str.replace("Z", "+00:00"))
+
+                    ticker_entry = Ticker(
+                        instrument_id=instrument_id,
+                        last=t.get("last"),
+                        lastTime=last_time,
+                        tag=t.get("tag"),
+                        pair=t.get("pair"),
+                        markPrice=t.get("markPrice"),
+                        bid=t.get("bid"),
+                        bidSize=t.get("bidSize"),
+                        ask=t.get("ask"),
+                        askSize=t.get("askSize"),
+                        vol24h=t.get("vol24h"),
+                        volumeQuote=t.get("volumeQuote"),
+                        openInterest=t.get("openInterest"),
+                        open24h=t.get("open24h"),
+                        high24h=t.get("high24h"),
+                        low24h=t.get("low24h"),
+                        lastSize=t.get("lastSize"),
+                        fundingRate=t.get("fundingRate"),
+                        fundingRatePrediction=t.get("fundingRatePrediction"),
+                        suspended=t.get("suspended"),
+                        indexPrice=t.get("indexPrice"),
+                        postOnly=t.get("postOnly"),
+                        change24h=t.get("change24h"),
+                    )
+                    tickers_to_add.append(ticker_entry)
+
+                # Bulk insert
+                session.bulk_save_objects(tickers_to_add)
+                session.commit()
+
+                self.logger.info(f"Inserted {len(tickers_to_add)} tickers")
+                return True
+
+            except SQLAlchemyError as e:
+                session.rollback()
+                self.logger.error(f"Failed to save tickers: {e}")
+                return False
+
+
     def save_trade_history(self, symbol: str, trade_data: dict):
         with self.Session() as session:
             try:
@@ -294,7 +376,41 @@ class DataHandler:
                 return False
 
 
+    def save_order_book(self, symbol: str, orderbook_data: dict):
 
+        with self.Session() as session:
+            try:
+                # Find instrument_id
+                instrument = session.query(Instrument).filter_by(symbol=symbol).first()
+                if not instrument:
+                    self.logger.warning(f"No instrument found for symbol {symbol}")
+                    return False
+
+                # Delete existing order book for this instrument if it exists
+                session.query(OrderBook).filter(OrderBook.instrument_id == instrument.id).delete(synchronize_session=False)
+
+                # Extract order book
+                ob = orderbook_data.get("orderBook")
+                if not ob:
+                    self.logger.warning(f"No orderBook field found in response for {symbol}")
+                    return False
+
+                new_orderbook = OrderBook(
+                    instrument_id=instrument.id,
+                    timestamp=datetime.utcnow(),
+                    bids=ob.get("bids", []),
+                    asks=ob.get("asks", [])
+                )
+
+                session.add(new_orderbook)
+                session.commit()
+                self.logger.info(f"Saved order book for {symbol} (instrument_id={instrument.id})")
+                return True
+
+            except SQLAlchemyError as e:
+                session.rollback()
+                self.logger.error(f"Failed to save order book for {symbol}: {e}")
+                return False
 
 
 

@@ -79,7 +79,7 @@ class ExchangeWrapper:
             self.logger.exception(f"Failed to fetch orderbook for {symbol}: {e}")
             return None
 
-    def get_tickers(self, contract_type=None):
+    def get_ticker_list(self, contract_type=None):
         """Market data for ALL contracts + indices (broad monitoring)."""
         endpoint = f"{self.BASE_URL}/tickers"
         if contract_type: 

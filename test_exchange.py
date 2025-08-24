@@ -51,7 +51,7 @@ def main():
     else:
         log.error("Failed to retrieve order book")
 
-    ticker = exchange.get_tickers()
+    ticker = exchange.get_ticker_list()
     ticker_list = ticker.get("tickers", [])
     if ticker_list:
         log.info(f"Ticker list retrieved: {len(ticker_list)} tickers")

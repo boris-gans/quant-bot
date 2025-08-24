@@ -32,7 +32,10 @@ def initialize_database(data_handler, exchange, log):
 
     # 2. Instrument status list
     try:
+        # all instruments
         status = exchange.get_instrument_status_list()
+
+        # single instrument
         # status = exchange.get_instrument_status('PI_XBTUSD')
 
         data_handler.save_instrument_status(status)
@@ -41,35 +44,36 @@ def initialize_database(data_handler, exchange, log):
 
 
     # 3. Tickers
-    # for inst in instruments["instruments"]:
-    #     symbol = inst.get("symbol")
-    #     try:
-    #         ticker = exchange.get_ticker(symbol)
-    #         data_handler.save_ticker(symbol, ticker)
-    #     except Exception as e:
-    #         log.warning(f"Failed to fetch ticker for {symbol}: {e}")
-    #         continue
+
+    # All instruments
+    try:
+        ticker = exchange.get_ticker_list()
+        data_handler.save_tickers(ticker)
+    except Exception as e:
+        log.warning(f"Failed to fetch and save tickers: {e}")
 
     # 4. Trades
-    # for all instruments
-    # for inst in instruments["instruments"]:
-    #     symbol = inst.get("symbol")
-    #     try:
-    #         trades = exchange.get_trade_history(symbol)
-    #         data_handler.save_trade_history(symbol, trades)
-    #     except Exception as e:
-    #         log.warning(f"Failed to fetch trades for {symbol}: {e}")
-    #         continue
-    # single instrument
-    try:
-        symbol = 'PI_XBTUSD'
-        trades = exchange.get_trade_history(symbol)
-        data_handler.save_trade_history(symbol, trades)
-    except Exception as e:
-        log.warning(f"Failed to fetch trades for {symbol}: {e}")
+    # All instruments
+    for inst in instruments["instruments"]:
+        symbol = inst.get("symbol")
+        try:
+            trades = exchange.get_trade_history(symbol)
+            data_handler.save_trade_history(symbol, trades)
+        except Exception as e:
+            log.warning(f"Failed to fetch trades for {symbol}: {e}")
+            continue
+
+    # Single instrument
+    # try:
+    #     symbol = 'PI_XBTUSD'
+    #     trades = exchange.get_trade_history(symbol)
+    #     data_handler.save_trade_history(symbol, trades)
+    # except Exception as e:
+    #     log.warning(f"Failed to fetch trades for {symbol}: {e}")
     
 
     # 5. Order books
+    # All instruments
     for inst in instruments["instruments"]:
         symbol = inst.get("symbol")
         try:
@@ -78,6 +82,14 @@ def initialize_database(data_handler, exchange, log):
         except Exception as e:
             log.warning(f"Failed to fetch order book for {symbol}: {e}")
             continue
+
+    # Single instrument
+    # try:
+    #     symbol = 'PI_XBTUSD'
+    #     order_book = exchange.get_order_book(symbol)
+    #     data_handler.save_order_book(symbol, order_book)
+    # except Exception as e:
+    #     log.warning(f"Failed to fetch trades for {symbol}: {e}")
 
     log.info("Database initialization completed successfully.")
 
