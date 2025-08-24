@@ -46,13 +46,13 @@ class ExchangeWrapper:
 
     def get_trade_history(self, symbol, last_time=None):
         """Completed trades for a symbol (useful for backtests, slippage models)."""
-        if not last_time:
-            self.logger.error("last_time parameter is required for get_trade_history")
-            return None
-        
         endpoint = f"{self.BASE_URL}/history"
-        params = {"symbol": symbol, "lastTime": last_time}
-        self.logger.info(f"Fetching trade history for {symbol} since {last_time}")
+        if last_time:
+            params = {"symbol": symbol, "lastTime": last_time}
+            self.logger.info(f"Fetching trade history for {symbol} since {last_time}")
+        else:
+            params = {"symbol": symbol}
+            self.logger.info(f"Fetching trade history for {symbol}")
 
         try:
             response = requests.get(endpoint, params=params)

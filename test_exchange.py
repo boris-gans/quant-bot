@@ -7,12 +7,14 @@ def main():
 
     # Init exchange
     exchange = ExchangeWrapper(log)
-    symbol = "PF_BTCUSD"
+    symbol = "PI_BTCUSD"
 
     # Call APIs
     log.info("==== TESTING EXCHANGE WRAPPER ====")
 
-    trade_history = exchange.get_trade_history(symbol, last_time="1724200000")
+    # trade_history = exchange.get_trade_history(symbol, last_time="1724200000")
+    trade_history = exchange.get_trade_history(symbol)
+
     if trade_history:
         log.info(f"Trade history retrieved: {len(trade_history.get('trades', []))} trades")
     else:
