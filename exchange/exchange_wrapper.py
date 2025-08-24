@@ -94,7 +94,7 @@ class ExchangeWrapper:
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            self.logger.exception(f"Failed to fetch market data")
+            self.logger.exception("Failed to fetch market data")
             return None
 
 # ----------------------------------------
@@ -103,10 +103,30 @@ class ExchangeWrapper:
         endpoint = f"{self.BASE_URL}/ticker"
         return requests.get(endpoint, params={"symbol": symbol}).json()
 
-    def get_instruments(self):
+    def get_instruments(self, contract_type=None):
         """Static metadata about all contracts (tick size, expiry, leverage)."""
         endpoint = f"{self.BASE_URL}/instruments"
-        return requests.get(endpoint).json()
+
+        params = None
+        if contract_type:
+            if isinstance(contract_type, str):
+                params = {"contractType": contract_type}
+                self.logger.info(f"Fetching instruments of type {contract_type}")
+            elif isinstance(contract_type, (list, tuple)):
+                params = [("contractType", ct) for ct in contract_type]
+                self.logger.info(f"Fetching instruments for contract types {', '.join(contract_type)}")
+            else:
+                raise ValueError("contract_type must be str, list or tuple")
+        else:
+            self.logger.info("Fetching instruments for all contract types")
+
+        try:
+            response = requests.get(endpoint, params=params)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            self.logger.exception("Failed to fetch instruments")
+            return None
 
     def get_instrument_status_list(self):
         """Market health for all instruments (halts, dislocations, volatility flags)."""
