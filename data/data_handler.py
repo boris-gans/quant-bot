@@ -1,9 +1,10 @@
 from sqlalchemy import (
     create_engine, Column, Integer, BigInteger, String, Numeric, 
-    TIMESTAMP, ForeignKey, JSON, UniqueConstraint
+    TIMESTAMP, ForeignKey, JSON, UniqueConstraint, Enum, Boolean, Float
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from datetime import datetime
+# import enum
 
 # -------------------------------
 #           Schema def
@@ -11,80 +12,139 @@ from datetime import datetime
 
 Base = declarative_base()
 
-class Instrument(Base):
-    __tablename__ = "instruments"
 
-    instrument_id = Column(Integer, primary_key=True, autoincrement=True)
+class Index(Base):
+    __tablename__ = "indices"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
     symbol = Column(String, unique=True, nullable=False)
     name = Column(String)
-    contract_size = Column(Numeric)
-    tick_size = Column(Numeric)
-    leverage_min = Column(Numeric)
-    leverage_max = Column(Numeric)
-    margin_initial = Column(Numeric)
-    margin_maintenance = Column(Numeric)
-    settlement_type = Column(String)
-    expiry = Column(TIMESTAMP, nullable=True)
+    base = Column(String)
+    quote = Column(String)
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
 
     # Relationships
-    trades = relationship("TradeHistory", back_populates="instrument")
-    tickers = relationship("Ticker", back_populates="instrument")
+    instruments = relationship("Instrument", back_populates="index")
+    statuses = relationship("InstrumentStatus", back_populates="index")
+
+class Instrument(Base):
+    __tablename__ = "instruments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String, unique=True, nullable=False)
+    type = Column(String)                 # e.g., futures_inverse
+    underlying = Column(String)           # link to index symbol
+    index_id = Column(Integer, ForeignKey("indices.id"), nullable=True)
+    tradeable = Column(Boolean)
+    tick_size = Column(Numeric)
+    contract_size = Column(Numeric)
+    impact_mid_size = Column(Numeric)
+    max_position_size = Column(Numeric)
+    opening_date = Column(TIMESTAMP, nullable=True)
+    funding_rate_coefficient = Column(Numeric)
+    max_relative_funding_rate = Column(Numeric)
+    isin = Column(String)
+    contract_value_trade_precision = Column(Numeric)
+    post_only = Column(Boolean)
+    fee_schedule_uid = Column(String)
+    mtf = Column(Boolean)
+    base = Column(String)
+    quote = Column(String)
+    pair = Column(String)
+    category = Column(String)
+    tags = Column(JSON)                     # list of tags
+    tradfi = Column(Boolean)
+
+    # store complex nested structures as JSON
+    margin_levels = Column(JSON)            # marginLevels
+    retail_margin_levels = Column(JSON)     # retailMarginLevels
+    margin_schedules = Column(JSON)         # marginSchedules
+
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+    # Relationships
+    index = relationship("Index", back_populates="instrument")
     statuses = relationship("InstrumentStatus", back_populates="instrument")
+    trades = relationship("TradeHistory", back_populates="instrument")
+    order_books = relationship("OrderBook", back_populates="instrument")
+    tickers = relationship("Ticker", back_populates="instrument")
 
 class InstrumentStatus(Base):
     __tablename__ = "instrument_status"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    instrument_id = Column(Integer, ForeignKey("instruments.instrument_id"))
-    timestamp = Column(TIMESTAMP, nullable=False)
-    status_flags = Column(JSON)
+    id = Column(Integer, primary_key=True, autoincrement=True)
 
+    instrument_id = Column(Integer, ForeignKey("instruments.id"), nullable=True)
+    index_id = Column(Integer, ForeignKey("indices.id"), nullable=True)
+
+    timestamp = Column(TIMESTAMP, default=datetime.utcnow)
+    status_flags = Column(JSON)             # full Kraken response
+    is_halted = Column(Boolean)             # optional
+
+    # Relationships
     instrument = relationship("Instrument", back_populates="statuses")
-    __table_args__ = (UniqueConstraint("instrument_id", "timestamp", name="unique_status"),)
+    index = relationship("Index", back_populates="statuses")
 
 class TradeHistory(Base):
     __tablename__ = "trade_history"
 
-    trade_id = Column(BigInteger, primary_key=True, autoincrement=True)
-    instrument_id = Column(Integer, ForeignKey("instruments.instrument_id"))
-    exchange_trade_id = Column(String)
-    timestamp = Column(TIMESTAMP, nullable=False)
-    side = Column(String)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    instrument_id = Column(Integer, ForeignKey("instruments.id"), nullable=False)
+    timestamp = Column(TIMESTAMP, nullable=False, index=True, default=datetime.utcnow)
     price = Column(Numeric, nullable=False)
     size = Column(Numeric, nullable=False)
+    side = Column(String, nullable=False)   # buy/sell
+    type = Column(String, nullable=True)    # fill, etc.
 
     instrument = relationship("Instrument", back_populates="trades")
-    __table_args__ = (UniqueConstraint("instrument_id", "exchange_trade_id", name="unique_trade"),)
 
-class OrderBookSnapshot(Base):
-    __tablename__ = "order_book_snapshots"
+class OrderBook(Base):
+    __tablename__ = "order_books"
 
-    snapshot_id = Column(BigInteger, primary_key=True, autoincrement=True)
-    instrument_id = Column(Integer, ForeignKey("instruments.instrument_id"))
-    timestamp = Column(TIMESTAMP, nullable=False)
-    bids = Column(JSON, nullable=False)
-    asks = Column(JSON, nullable=False)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    instrument_id = Column(Integer, ForeignKey("instruments.id"), nullable=False)
+    timestamp = Column(TIMESTAMP, nullable=False, index=True, default=datetime.utcnow)
+    bids = Column(JSON, nullable=False)   # save list of [price, size]
+    asks = Column(JSON, nullable=False)   # save list of [price, size]
 
-    __table_args__ = (UniqueConstraint("instrument_id", "timestamp", name="unique_snapshot"),)
+    instrument = relationship("Instrument", back_populates="order_books")
 
 class Ticker(Base):
     __tablename__ = "tickers"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    instrument_id = Column(Integer, ForeignKey("instruments.instrument_id"))
-    timestamp = Column(TIMESTAMP, nullable=False)
-    last_price = Column(Numeric)
-    mark_price = Column(Numeric)
-    bid_price = Column(Numeric)
-    ask_price = Column(Numeric)
-    volume_24h = Column(Numeric)
-    funding_rate = Column(Numeric)
-    open_interest = Column(Numeric)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    instrument_id = Column(Integer, ForeignKey("instruments.id"), nullable=False)
+    timestamp = Column(TIMESTAMP, nullable=False, index=True, default=datetime.utcnow)
+
+    # price info
+    last = Column(Float, nullable=True)
+    last_time = Column(TIMESTAMP, nullable=True)
+    mark_price = Column(Float, nullable=True)
+    bid = Column(Float, nullable=True)
+    bid_size = Column(Float, nullable=True)
+    ask = Column(Float, nullable=True)
+    ask_size = Column(Float, nullable=True)
+    open24h = Column(Float, nullable=True)
+    high24h = Column(Float, nullable=True)
+    low24h = Column(Float, nullable=True)
+    last_size = Column(Float, nullable=True)
+    index_price = Column(Float, nullable=True)
+    
+    # trading info
+    vol24h = Column(Float, nullable=True)
+    volume_quote = Column(Float, nullable=True)
+    open_interest = Column(Float, nullable=True)
+    funding_rate = Column(Float, nullable=True)
+    funding_rate_prediction = Column(Float, nullable=True)
+    change24h = Column(Float, nullable=True)
+    
+    # status flags
+    suspended = Column(Boolean, nullable=True)
+    post_only = Column(Boolean, nullable=True)
+    tag = Column(String, nullable=True)
+    pair = Column(String, nullable=True)
 
     instrument = relationship("Instrument", back_populates="tickers")
-    __table_args__ = (UniqueConstraint("instrument_id", "timestamp", name="unique_ticker"),)
-
 
 
 
