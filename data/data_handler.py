@@ -3,6 +3,7 @@ from sqlalchemy import (
     TIMESTAMP, ForeignKey, JSON, UniqueConstraint, Enum, Boolean, Float
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
 # import enum
 
@@ -13,7 +14,7 @@ from datetime import datetime
 Base = declarative_base()
 
 
-class Index(Base):
+class Indices(Base):
     __tablename__ = "indices"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -24,46 +25,48 @@ class Index(Base):
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
 
     # Relationships
-    instruments = relationship("Instrument", back_populates="index")
-    statuses = relationship("InstrumentStatus", back_populates="index")
+    instrument = relationship("Instrument", back_populates="index")
+    # statuses = relationship("InstrumentStatus", back_populates="indices")
 
 class Instrument(Base):
     __tablename__ = "instruments"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     symbol = Column(String, unique=True, nullable=False)
-    type = Column(String)                 # e.g., futures_inverse
-    underlying = Column(String)           # link to index symbol
-    index_id = Column(Integer, ForeignKey("indices.id"), nullable=True)
+    type = Column(String)                        # e.g., futures_inverse
+    underlying = Column(String)                  # link to index symbol
+    index_id = Column(Integer, ForeignKey("indices.id", ondelete="CASCADE"), nullable=True)
     tradeable = Column(Boolean)
-    tick_size = Column(Numeric)
-    contract_size = Column(Numeric)
-    impact_mid_size = Column(Numeric)
-    max_position_size = Column(Numeric)
-    opening_date = Column(TIMESTAMP, nullable=True)
-    funding_rate_coefficient = Column(Numeric)
-    max_relative_funding_rate = Column(Numeric)
+    tickSize = Column(Numeric)
+    contractSize = Column(Numeric)
+    impactMidSize = Column(Numeric)
+    maxPositionSize = Column(Numeric)
+    openingDate = Column(TIMESTAMP, nullable=True)
+    fundingRateCoefficient = Column(Numeric)
+    maxRelativeFundingRate = Column(Numeric)
     isin = Column(String)
-    contract_value_trade_precision = Column(Numeric)
-    post_only = Column(Boolean)
-    fee_schedule_uid = Column(String)
+    lastTradingTime = Column(TIMESTAMP, nullable=True)
+    contractValueTradePrecision = Column(Numeric)
+    postOnly = Column(Boolean)
+    feeScheduleUid = Column(String)
     mtf = Column(Boolean)
     base = Column(String)
     quote = Column(String)
     pair = Column(String)
     category = Column(String)
-    tags = Column(JSON)                     # list of tags
+    tags = Column(JSON)                          # list of tags
     tradfi = Column(Boolean)
 
     # store complex nested structures as JSON
-    margin_levels = Column(JSON)            # marginLevels
-    retail_margin_levels = Column(JSON)     # retailMarginLevels
-    margin_schedules = Column(JSON)         # marginSchedules
+    marginLevels = Column(JSON)                  # marginLevels
+    retailMarginLevels = Column(JSON)           # retailMarginLevels
+    marginSchedules = Column(JSON)              # marginSchedules
 
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
 
+
     # Relationships
-    index = relationship("Index", back_populates="instrument")
+    index = relationship("Indices", back_populates="instrument")
     statuses = relationship("InstrumentStatus", back_populates="instrument")
     trades = relationship("TradeHistory", back_populates="instrument")
     order_books = relationship("OrderBook", back_populates="instrument")
@@ -73,23 +76,24 @@ class InstrumentStatus(Base):
     __tablename__ = "instrument_status"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-
-    instrument_id = Column(Integer, ForeignKey("instruments.id"), nullable=True)
-    index_id = Column(Integer, ForeignKey("indices.id"), nullable=True)
+    instrument_id = Column(Integer, ForeignKey("instruments.id", ondelete="CASCADE"), nullable=True)
 
     timestamp = Column(TIMESTAMP, default=datetime.utcnow)
-    status_flags = Column(JSON)             # full Kraken response
-    is_halted = Column(Boolean)             # optional
+    experiencingDislocation = Column(Boolean)
+    priceDislocationDirection = Column(String)
+    experiencingExtremeVolatility = Column(Boolean)
+    extremeVolatilityInitialMarginMultiplier = Column(Integer)
+
+    is_halted = Column(Boolean, nullable=True)             # optional
 
     # Relationships
     instrument = relationship("Instrument", back_populates="statuses")
-    index = relationship("Index", back_populates="statuses")
 
 class TradeHistory(Base):
     __tablename__ = "trade_history"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    instrument_id = Column(Integer, ForeignKey("instruments.id"), nullable=False)
+    instrument_id = Column(Integer, ForeignKey("instruments.id", ondelete="CASCADE"), nullable=False)
     timestamp = Column(TIMESTAMP, nullable=False, index=True, default=datetime.utcnow)
     price = Column(Numeric, nullable=False)
     size = Column(Numeric, nullable=False)
@@ -102,7 +106,7 @@ class OrderBook(Base):
     __tablename__ = "order_books"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    instrument_id = Column(Integer, ForeignKey("instruments.id"), nullable=False)
+    instrument_id = Column(Integer, ForeignKey("instruments.id", ondelete="CASCADE"), nullable=False)
     timestamp = Column(TIMESTAMP, nullable=False, index=True, default=datetime.utcnow)
     bids = Column(JSON, nullable=False)   # save list of [price, size]
     asks = Column(JSON, nullable=False)   # save list of [price, size]
@@ -113,7 +117,7 @@ class Ticker(Base):
     __tablename__ = "tickers"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    instrument_id = Column(Integer, ForeignKey("instruments.id"), nullable=False)
+    instrument_id = Column(Integer, ForeignKey("instruments.id", ondelete="CASCADE"), nullable=False)
     timestamp = Column(TIMESTAMP, nullable=False, index=True, default=datetime.utcnow)
 
     # price info
@@ -158,19 +162,98 @@ class DataHandler:
         self.logger.info(f"Initialized DataHandler to DB: {db_url}")
 
 
-    def add_instrument(self, instrument_data: dict):
-        """Insert or update an instrument"""
+    def init_instruments(self, instrument_list: list):
+        """
+        Overwrite instruments table with new data.
+        Non-tradeable instruments are also added to the indices table.
+        """
+        try:
+            with self.Session() as session:
+                # Delete all existing instruments and indices
+                session.query(Instrument).delete()
+                session.query(Indices).delete()
+                session.commit()
+                self.logger.info("Cleared existing instruments and indices")
+
+                for instrument_data in instrument_list:
+                    # Add to instruments table
+                    inst = Instrument(**instrument_data)
+                    session.add(inst)
+
+                    # If not tradeable, also add to indices
+                    if not instrument_data.get("tradeable", True):
+                        index_data = {
+                            "symbol": instrument_data["symbol"],
+                            "name": instrument_data.get("name"),
+                            # add other fields as needed
+                        }
+                        session.add(Indices(**index_data))
+
+                session.commit()
+                self.logger.info(f"Inserted {len(instrument_list)} instruments successfully")
+                return "success"
+
+        except SQLAlchemyError as e:
+            session.rollback()
+            self.logger.error(f"Failed to add instruments: {e}")
+            return "fail"
+        
+    def save_instrument_status(self, status_data: dict):
+        # Upsert either a list or a single instrument's status
+
         with self.Session() as session:
-            inst = session.query(Instrument).filter_by(symbol=instrument_data["symbol"]).first()
-            if not inst:
-                inst = Instrument(**instrument_data)
-                session.add(inst)
-            else:
-                for k, v in instrument_data.items():
-                    setattr(inst, k, v)
-            session.commit()
-            self.logger.info("Added instrument data")
-            return inst
+            try:
+                statuses_to_add = []
+
+                if "instrumentStatus" in status_data:
+                    raw_statuses = status_data["instrumentStatus"]
+                else:
+                    raw_statuses = [status_data]
+
+                # Collect all instrument IDs and generate map
+                instrument_symbols = [s.get("tradeable") for s in raw_statuses if s.get("tradeable")]
+                instruments = session.query(Instrument).filter(Instrument.symbol.in_(instrument_symbols)).all()
+                instrument_map = {inst.symbol: inst.id for inst in instruments}
+
+                if not instrument_map:
+                    self.logger.warning("No matching instruments found for provided statuses")
+                    return False
+
+                # Delete old statuses for provided instruments
+                session.query(InstrumentStatus).filter(InstrumentStatus.instrument_id.in_(instrument_map.values())).delete(synchronize_session=False)
+
+                # Add new statuses
+                for s in raw_statuses:
+                    # print(s)
+                    tradeable_symbol = s.get("tradeable")
+                    instrument_id = instrument_map.get(tradeable_symbol)
+                    if not instrument_id:
+                        self.logger.warning(f"Skipping status, no instrument found for symbol {tradeable_symbol}")
+                        continue
+
+                    status_record = InstrumentStatus(
+                        instrument_id=instrument_id,
+                        experiencingDislocation=s['experiencingDislocation'],
+                        priceDislocationDirection=s['priceDislocationDirection'],
+                        experiencingExtremeVolatility=s['experiencingExtremeVolatility'],
+                        extremeVolatilityInitialMarginMultiplier=s['extremeVolatilityInitialMarginMultiplier']
+                        # optional isHalted field
+                    )
+                    statuses_to_add.append(status_record)
+
+                if statuses_to_add:
+                    session.add_all(statuses_to_add)
+                    session.commit()
+                    self.logger.info(f"Overwritten {len(statuses_to_add)} instrument status records")
+                else:
+                    self.logger.info("No valid instrument statuses to save")
+
+            except SQLAlchemyError as e:
+                session.rollback()
+                self.logger.error(f"Failed to save instrument statuses: {str(e)}")
+                return False
+
+        return True
 
     def add_trade(self, trade_data: dict):
         """Insert a trade into trade_history"""

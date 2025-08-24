@@ -24,21 +24,30 @@ def initialize_database(data_handler, exchange, log):
         if not instruments or "instruments" not in instruments:
             log.error("No instruments returned by exchange")
             sys.exit(1)  # Stop early
-        data_handler.save_instruments(instruments["instruments"])
+        data_handler.init_instruments(instruments["instruments"])
         log.info(f"Saved {len(instruments['instruments'])} instruments")
     except Exception as e:
-        log.exception(f"Failed to fetch instruments: {e}")
+        log.exception(f"Failed to save instruments: {e}")
         sys.exit(1)
 
     # 2. Instrument status
-    for inst in instruments["instruments"]:
-        symbol = inst.get("symbol")
-        try:
-            status = exchange.get_instrument_status(symbol)
-            data_handler.save_instrument_status(symbol, status)
-        except Exception as e:
-            log.warning(f"Failed to fetch status for {symbol}: {e}")
-            continue
+    try:
+        status = exchange.get_instrument_status_list()
+        # status = exchange.get_instrument_status('PI_XBTUSD')
+        # print(status)
+        data_handler.save_instrument_status(status)
+    except Exception as e:
+        log.warning(f"Failed to fetch statuses: {e}")
+        # continue
+    
+    # for inst in instruments["instruments"]:
+    #     symbol = inst.get("symbol")
+    #     try:
+    #         status = exchange.get_instrument_status(symbol)
+    #         data_handler.save_instrument_status(symbol, status)
+    #     except Exception as e:
+    #         log.warning(f"Failed to fetch status for {symbol}: {e}")
+    #         continue
 
     # 3. Tickers
     for inst in instruments["instruments"]:
