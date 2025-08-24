@@ -16,7 +16,7 @@ def main():
 
 
 
-    handler = DataHandler(DATABASE_URL)
+    handler = DataHandler(DATABASE_URL, log)
 
     # Call APIs
     log.info("==== TESTING EXCHANGE WRAPPER ====")
