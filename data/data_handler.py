@@ -32,7 +32,6 @@ class Instrument(Base):
     tickers = relationship("Ticker", back_populates="instrument")
     statuses = relationship("InstrumentStatus", back_populates="instrument")
 
-
 class InstrumentStatus(Base):
     __tablename__ = "instrument_status"
 
@@ -43,7 +42,6 @@ class InstrumentStatus(Base):
 
     instrument = relationship("Instrument", back_populates="statuses")
     __table_args__ = (UniqueConstraint("instrument_id", "timestamp", name="unique_status"),)
-
 
 class TradeHistory(Base):
     __tablename__ = "trade_history"
@@ -59,7 +57,6 @@ class TradeHistory(Base):
     instrument = relationship("Instrument", back_populates="trades")
     __table_args__ = (UniqueConstraint("instrument_id", "exchange_trade_id", name="unique_trade"),)
 
-
 class OrderBookSnapshot(Base):
     __tablename__ = "order_book_snapshots"
 
@@ -70,7 +67,6 @@ class OrderBookSnapshot(Base):
     asks = Column(JSON, nullable=False)
 
     __table_args__ = (UniqueConstraint("instrument_id", "timestamp", name="unique_snapshot"),)
-
 
 class Ticker(Base):
     __tablename__ = "tickers"
@@ -93,10 +89,14 @@ class Ticker(Base):
 
 
 class DataHandler:
-    def __init__(self, db_url):
+    def __init__(self, db_url, logger):
         self.engine = create_engine(db_url, echo=False)
         Base.metadata.create_all(self.engine)  # Creates tables if not exist
         self.Session = sessionmaker(bind=self.engine)
+
+        self.logger = logger
+        self.logger.info(f"Initialized DataHandler to DB: {db_url}")
+
 
     def add_instrument(self, instrument_data: dict):
         """Insert or update an instrument"""
@@ -109,6 +109,7 @@ class DataHandler:
                 for k, v in instrument_data.items():
                     setattr(inst, k, v)
             session.commit()
+            self.logger.info("Added instrument data")
             return inst
 
     def add_trade(self, trade_data: dict):
@@ -118,6 +119,8 @@ class DataHandler:
             session.add(trade)
             try:
                 session.commit()
+                self.logger.info("Added trade data")
+
             except Exception:
                 session.rollback()  # ignore duplicate constraint
             return trade
@@ -136,4 +139,6 @@ class DataHandler:
                 "price": float(t.price),
                 "size": float(t.size)
             } for t in trades])
+            self.logger.info("Loaded trade data")
+
             return df.sort_values("timestamp")

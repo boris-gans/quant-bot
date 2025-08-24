@@ -18,27 +18,6 @@ def main():
 
     handler = DataHandler(DATABASE_URL)
 
-    handler.add_instrument({
-        "symbol": "PI_XBTUSD",
-        "name": "Perpetual Bitcoin/USD",
-        "contract_size": 1,
-        "tick_size": 0.5,
-        "settlement_type": "perpetual"
-    })
-
-    handler.add_trade({
-        "instrument_id": 1,
-        "exchange_trade_id": "abc123",
-        "timestamp": datetime.utcnow(),
-        "side": "buy",
-        "price": 62000,
-        "size": 10
-    })
-
-    print(handler.get_trades_df("PI_XBTUSD"))
-
-
-
     # Call APIs
     log.info("==== TESTING EXCHANGE WRAPPER ====")
 
