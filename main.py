@@ -2,7 +2,7 @@ from exchange.exchange_wrapper import ExchangeWrapper
 from data.data_handler import DataHandler
 from strategies.moving_average import MovingAverageStrategy
 from trader.trader import Trader
-from config.settings import SYMBOL, TIMEFRAME
+from config.settings import SYMBOL, TIMEFRAME, DATABASE_URL
 from utils.logger import Logger
 
 def main():
@@ -11,7 +11,7 @@ def main():
 
     # Init exchange + data
     exchange = ExchangeWrapper(log)
-    data_handler = DataHandler(exchange, log)
+    data_handler = DataHandler(DATABASE_URL, exchange, log)
     df = data_handler.get_historical_data(SYMBOL, TIMEFRAME, limit=200)
 
     # Apply strategy

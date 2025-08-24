@@ -18,6 +18,7 @@ numpy              2.3.2
 pandas             2.3.2
 pip                25.0.1
 propcache          0.3.2
+psycopg2-binary    2.9.10
 pycares            4.10.0
 pycparser          2.22
 python-dateutil    2.9.0.post0
@@ -25,6 +26,7 @@ pytz               2025.2
 requests           2.32.5
 setuptools         80.9.0
 six                1.17.0
+SQLAlchemy         2.0.43
 typing_extensions  4.14.1
 tzdata             2025.2
 urllib3            2.5.0

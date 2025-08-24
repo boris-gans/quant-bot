@@ -1,5 +1,9 @@
 from exchange.exchange_wrapper import ExchangeWrapper
 from utils.logger import Logger
+from data.data_handler import DataHandler
+from datetime import datetime
+from config.settings import SYMBOL, TIMEFRAME, DATABASE_URL
+
 
 def main():
     # Init logger
@@ -7,17 +11,48 @@ def main():
 
     # Init exchange
     exchange = ExchangeWrapper(log)
-    # symbol = "PI_BTCUSD"
+    # contract_type = "futures_inverse"
+        # all instruments
+
+
+
+    handler = DataHandler(DATABASE_URL)
+
+    handler.add_instrument({
+        "symbol": "PI_XBTUSD",
+        "name": "Perpetual Bitcoin/USD",
+        "contract_size": 1,
+        "tick_size": 0.5,
+        "settlement_type": "perpetual"
+    })
+
+    handler.add_trade({
+        "instrument_id": 1,
+        "exchange_trade_id": "abc123",
+        "timestamp": datetime.utcnow(),
+        "side": "buy",
+        "price": 62000,
+        "size": 10
+    })
+
+    print(handler.get_trades_df("PI_XBTUSD"))
+
+
 
     # Call APIs
     log.info("==== TESTING EXCHANGE WRAPPER ====")
 
     instruments = exchange.get_instruments()
+    instrument_status = exchange.get_instrument_status_list()
     instrument_list = instruments.get("instruments", [])
+    instrument_status_list = instrument_status.get("instrumentStatus", [])
     if instrument_list:
         log.info(f"Instruments retrieved: {len(instrument_list)} instruments")
         for i, inst in enumerate(instrument_list[:5], start=1):
             log.info(f"Instrument {i}: {inst['symbol']}")
+        for i, inst in enumerate(instrument_status_list[:5], start=1):
+            log.info(f"Instrument {inst['tradeable']}: {inst['experiencingDislocation']}")
+
         symbol = instrument_list[0]["symbol"]
     else:
         log.error("Failed to retrieve instruments")
@@ -37,8 +72,7 @@ def main():
     else:
         log.error("Failed to retrieve order book")
 
-    ticker = exchange.get_ticker(symbol)
-    print(ticker)
+    ticker = exchange.get_tickers()
     ticker_list = ticker.get("tickers", [])
     if ticker_list:
         log.info(f"Ticker list retrieved: {len(ticker_list)} tickers")

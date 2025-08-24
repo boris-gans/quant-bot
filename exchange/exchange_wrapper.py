@@ -100,8 +100,20 @@ class ExchangeWrapper:
 # ----------------------------------------
     def get_ticker(self, symbol):
         """Market data for a single contract/index (lighter request)."""
-        endpoint = f"{self.BASE_URL}/ticker"
-        return requests.get(endpoint, params={"symbol": symbol}).json()
+        if symbol:
+            endpoint = f"{self.BASE_URL}/tickers/{symbol}"
+            self.logger.info(f"Fetching market data for symbol {symbol}")
+        else:
+            self.logger.error("symbol parameter is required for get_ticker")
+
+        try:
+            response = requests.get(endpoint)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            self.logger.exception("Failed to fetch market data")
+            return None
+
 
     def get_instruments(self, contract_type=None):
         """Static metadata about all contracts (tick size, expiry, leverage)."""
@@ -128,12 +140,45 @@ class ExchangeWrapper:
             self.logger.exception("Failed to fetch instruments")
             return None
 
-    def get_instrument_status_list(self):
+    def get_instrument_status_list(self, contract_type = None):
         """Market health for all instruments (halts, dislocations, volatility flags)."""
         endpoint = f"{self.BASE_URL}/instruments/status"
-        return requests.get(endpoint).json()
+
+        params = None
+        if contract_type:
+            if isinstance(contract_type, str):
+                params = {"contractType": contract_type}
+                self.logger.info(f"Fetching status of instruments of type {contract_type}")
+            elif isinstance(contract_type, (list, tuple)):
+                params = [("contractType", ct) for ct in contract_type]
+                self.logger.info(f"Fetching status of instruments for contract types {', '.join(contract_type)}")
+            else:
+                raise ValueError("contract_type must be str, list or tuple")
+        else:
+            self.logger.info("Fetching status of instruments for all contract types")
+
+        try:
+            response = requests.get(endpoint, params=params)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            self.logger.exception("Failed to fetch instrument status")
+            return None
+        
 
     def get_instrument_status(self, symbol):
         """Market health for one instrument (lighter request)."""
-        endpoint = f"{self.BASE_URL}/instruments/{symbol}/status"
-        return requests.get(endpoint).json()
+
+        if symbol:
+            endpoint = f"{self.BASE_URL}/instruments/{symbol}/status"
+            self.logger.info(f"Fetching status of instrument with symbol {symbol}")
+        else:
+            self.logger.error("symbol parameter is required for get_ticker")
+
+        try:
+            response = requests.get(endpoint)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            self.logger.exception("Failed to fetch instrument status")
+            return None
