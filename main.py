@@ -5,6 +5,7 @@ from trader.trader import Trader
 from config.settings import SYMBOL, TIMEFRAME, DATABASE_URL
 from utils.logger import Logger
 import sys
+import pandas as pd
 
 
 def initialize_database(data_handler, exchange, log):
@@ -83,6 +84,8 @@ def initialize_database(data_handler, exchange, log):
             log.warning(f"Failed to fetch order book for {symbol}: {e}")
             continue
 
+    # CALL LIVE_TRADING FROM HERE? OR RETURN INSTRUMENTS
+
     # Single instrument
     # try:
     #     symbol = 'PI_XBTUSD'
@@ -93,6 +96,47 @@ def initialize_database(data_handler, exchange, log):
 
     log.info("Database initialization completed successfully.")
 
+def live_trading(data_handler, exchange, log):
+    """
+    Live trading polling: Refresh only neccecesary data, minmize latency
+    1. Instrument status: poll frequently for dislocations / volatility
+    2. Tickers: poll frequently for live prices, funding rates, etc.
+    3. Order books: poll less frequently (unless depth is needed); overwrite each time
+    4. Trades: poll frequently, only append new ones (time + symbol as uniqueness)
+    """
+    # fetch all instruments
+    try:
+        instruments = data_handler.get_instruments()
+        print(instruments.head)
+    except Exception as e:
+        log.warning(f"Failed to fetch statuses: {e}")
+
+    # 1. Instrument status
+    try:
+        # all instruments
+        status = exchange.get_instrument_status_list()
+        data_handler.save_instrument_status(status)
+    except Exception as e:
+        log.warning(f"Failed to fetch statuses: {e}")
+
+
+    # 2. Ticker refresh
+    try:
+        # all tickers
+        ticker = exchange.get_ticker_list()
+        data_handler.save_tickers(ticker)
+    except Exception as e:
+        log.warning(f"Failed to fetch and save tickers: {e}")
+
+    for inst in instruments:
+        symbol = inst.get("symbol")
+        try:
+            order_book = exchange.get_order_book(symbol)
+            data_handler.save_order_book(symbol, order_book)
+        except Exception as e:
+            log.warning(f"Failed to fetch order book for {symbol}: {e}")
+            continue
+
 
 def main():
     # Init logger
@@ -102,7 +146,8 @@ def main():
     exchange = ExchangeWrapper(log)
     data_handler = DataHandler(DATABASE_URL, log)
 
-    initialize_database(data_handler, exchange, log)
+    # initialize_database(data_handler, exchange, log)\
+    live_trading(data_handler, exchange, log)
 
     # df = data_handler.get_historical_data(SYMBOL, TIMEFRAME, limit=200)
 

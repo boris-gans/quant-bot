@@ -2,10 +2,10 @@ from sqlalchemy import (
     create_engine, Column, Integer, BigInteger, String, Numeric, 
     TIMESTAMP, ForeignKey, JSON, UniqueConstraint, Enum, Boolean, Float
 )
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker, joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
-# import enum
+import pandas as pd
 
 # -------------------------------
 #           Schema def
@@ -418,7 +418,52 @@ class DataHandler:
 
 
 
+    # GETS
+    
+    def get_instruments(self):
+        with self.Session() as session:
+            # Eager load indices if relationship exists
+            instruments = (
+                session.query(Instrument)
+                .options(joinedload(Instrument.index))
+                .all()
+            )
 
+            data = []
+            for inst in instruments:
+                row = {
+                    "id": inst.id,
+                    "symbol": inst.symbol,
+                    "type": inst.type,
+                    "underlying": inst.underlying,
+                    "tradeable": inst.tradeable,
+
+                    "tickSize": inst.tickSize,
+                    "contractSize": inst.contractSize,
+                    "impactMidSize": inst.impactMidSize,
+                    "maxPositionSize": inst.maxPositionSize,
+                    "openingDate": inst.openingDate,
+                    "fundingRateCoefficient": inst.fundingRateCoefficient,
+                    "maxRelativeFundingRate": inst.tradeable,
+
+                    
+
+                    # "lastTime": inst.lastTime,
+                    # "tag": inst.tag,
+                    # "tradeable": inst.tradeable,
+                }
+
+                # If relationship exists, add index info
+                if inst.index_id:
+                    print(inst.index_id)
+                    # row["indices"] = [idx.symbol for idx in inst.indices]
+                else:
+                    row["indices"] = None
+
+                data.append(row)
+
+            df = pd.DataFrame(data)
+            return df
 
 
 

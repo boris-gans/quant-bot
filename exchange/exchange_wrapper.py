@@ -180,5 +180,5 @@ class ExchangeWrapper:
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            self.logger.exception("Failed to fetch instrument status")
+            self.logger.exception(f"Failed to fetch instrument status: {e}")
             return None
