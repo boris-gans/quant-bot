@@ -15,7 +15,7 @@ class Trader:
 	# 	○ Good way to learn backtesting and live execution.
 
 
-    def momentum(self, data, symbol, amount=0.001):
+    def momentum(self, data, symbol, window_rsi=14, amount=0.001):
         """
         RSI: Buy if <30 (oversold), sell if >70 (overbought)
         MACD: Buy if line crosses above signal line, vice-versa
@@ -29,7 +29,6 @@ class Trader:
         df["volume"] = df["vol24h"].astype(float)
 
         # calc RSI
-        window_rsi = 14
         delta = df["close"].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=window_rsi).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=window_rsi).mean()

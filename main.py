@@ -150,22 +150,32 @@ def live_trading_test(data_handler, exchange, trader, log):
     # And orderbook (for liquidity check)
 
     ohlcv_keys = ["lastTime", "open24h", "high24h", "low24h", "last", "vol24h"]
+    window_rsi = 14
 
     # Fetch all instruments; just get top one for testing
     try:
-        symbol = data_handler.get_instruments()[0]["symbol"] #df
+        symbol = data_handler.get_instruments()[0]["symbol"]
         print(symbol)
-        # symbol = instrument
-        ticker_data = exchange.get_ticker(symbol)['ticker']
-        ohclv_data = {k: ticker_data[k] for k in ohlcv_keys if k in ticker_data}
-        print(ohclv_data)
-
-        # order_data = exchange.get_order_book(symbol)
     except Exception as e:
-        log.warning(f"Failed to fetch data for instrument: {e}")
+        log.warning(f"Failed to establish symbol: {e}")
+
+    unique_count = 0
+    last_timestamp = None
+    
+    while unique_count < window_rsi:
+
+        try:
+            ticker_data = exchange.get_ticker(symbol)['ticker']
+            ohclv_data = {k: ticker_data[k] for k in ohlcv_keys if k in ticker_data}
+            log.info(f"Candle obtained")
+            print(ohclv_data)
+
+            # order_data = exchange.get_order_book(symbol)
+        except Exception as e:
+            log.warning(f"Failed to fetch data for instrument: {e}")
 
     try:
-        trader.momentum(ohclv_data, symbol)
+        trader.momentum(ohclv_data, symbol, window_rsi)
     except Exception as e:
         log.warning(f"Failed to generate and execute signals for {symbol}: {e}")
 
