@@ -149,12 +149,26 @@ def live_trading_test(data_handler, exchange, trader, log):
     # Need last 100 tickers for one symbol (testing)
     # And orderbook (for liquidity check)
 
+    ohlcv_keys = ["lastTime", "open24h", "high24h", "low24h", "last", "vol24h"]
+
     # Fetch all instruments; just get top one for testing
     try:
-        instruments = data_handler.get_instruments() #df
-        print(instruments[0]['symbol'])
+        symbol = data_handler.get_instruments()[0]["symbol"] #df
+        print(symbol)
+        # symbol = instrument
+        ticker_data = exchange.get_ticker(symbol)['ticker']
+        ohclv_data = {k: ticker_data[k] for k in ohlcv_keys if k in ticker_data}
+        print(ohclv_data)
+
+        # order_data = exchange.get_order_book(symbol)
     except Exception as e:
-        log.warning(f"Failed to fetch instruments: {e}")
+        log.warning(f"Failed to fetch data for instrument: {e}")
+
+    try:
+        trader.momentum(ohclv_data, symbol)
+    except Exception as e:
+        log.warning(f"Failed to generate and execute signals for {symbol}: {e}")
+
 
 def main():
     # Init logger

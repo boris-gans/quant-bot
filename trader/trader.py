@@ -23,21 +23,21 @@ class Trader:
         """
         self.logger.info("Starting Momentum strategy")
 
-
-        # --- Step 1: Convert to DataFrame ---
-        df = pd.DataFrame(data)  # expects keys: time, open, high, low, close, volume
+        df = pd.DataFrame(data)
+        # lastTime, open24h, high24h, low24h, last, vol24h
         df["close"] = df["close"].astype(float)
         df["volume"] = df["volume"].astype(float)
 
-        # --- Step 2: RSI calculation ---
+        # calc RSI
         window_rsi = 14
         delta = df["close"].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=window_rsi).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=window_rsi).mean()
         rs = gain / loss
         df["RSI"] = 100 - (100 / (1 + rs))
+        self.logger.info(f"RSI calculated: {df["RSI"]}")
 
-        # --- Step 3: MACD calculation ---
+        # calc MACD
         short_window = 12
         long_window = 26
         signal_window = 9
@@ -45,21 +45,22 @@ class Trader:
         df["EMA_long"] = df["close"].ewm(span=long_window, adjust=False).mean()
         df["MACD"] = df["EMA_short"] - df["EMA_long"]
         df["Signal"] = df["MACD"].ewm(span=signal_window, adjust=False).mean()
+        self.logger.info(f"MACD calculated: {df["Signal"]}")
 
-        # --- Step 4: Volume filter ---
+
+        # filter low volume
         df["vol_avg"] = df["volume"].rolling(window=20).mean()
 
-        # --- Step 5: Generate signals ---
+        # Generate signals
         signal = 0  # 1 = buy, -1 = sell, 0 = hold
         latest = df.iloc[-1]
 
-        # RSI signal
+
         if latest["RSI"] < 30:
             signal = 1
         elif latest["RSI"] > 70:
             signal = -1
 
-        # MACD confirmation
         if latest["MACD"] > latest["Signal"]:
             if signal == 1:  # only confirm buy if MACD supports it
                 signal = 1
@@ -67,11 +68,10 @@ class Trader:
             if signal == -1:  # only confirm sell if MACD supports it
                 signal = -1
 
-        # Volume confirmation
         if latest["volume"] < latest["vol_avg"]:
-            signal = 0  # no trade if volume too low
+            signal = 0
 
-        # --- Step 6: Execute trade if signal exists ---
+        # execute trade using signals
         return self.execute_signal(symbol, signal, amount)
 
 

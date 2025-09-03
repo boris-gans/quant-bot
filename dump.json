@@ -1,0 +1,29 @@
+{
+    "result": "success",
+    "serverTime": "2025-09-03T12:58:28.974Z",
+    "ticker": {
+        "symbol": "PI_XBTUSD",
+        "last": 111128.5,
+        "lastTime": "2025-09-03T12:57:21.314001Z",
+        "tag": "perpetual",
+        "pair": "XBT:USD",
+        "markPrice": 111226.07501267664,
+        "bid": 111211.5,
+        "bidSize": 622,
+        "ask": 111247.5,
+        "askSize": 622,
+        "vol24h": 3729318,
+        "volumeQuote": 3729318,
+        "openInterest": 7428563.0,
+        "open24h": 108823,
+        "high24h": 111787.5,
+        "low24h": 108754,
+        "lastSize": 213,
+        "fundingRate": 8.4444889e-11,
+        "fundingRatePrediction": 8.0810707e-11,
+        "suspended": False,
+        "indexPrice": 111205.68,
+        "postOnly": False,
+        "change24h": 2.12
+    }
+}
