@@ -412,6 +412,81 @@ class DataHandler:
                 self.logger.error(f"Failed to save order book for {symbol}: {e}")
                 return False
 
+    def append_tickers(self, ticker_data: dict):
+        with self.Session() as session:
+            try:
+                tickers = []
+
+                # Handles both get_ticker and get_ticker_list
+                if "ticker" in ticker_data:
+                    tickers = [ticker_data["ticker"]]
+                elif "tickers" in ticker_data:
+                    tickers = ticker_data["tickers"]
+
+                if not tickers:
+                    self.logger.warning("No ticker data to save")
+                    return False
+
+                # Map symbols to instrument IDs
+                symbols = [t["symbol"] for t in tickers if t.get("symbol")]
+                instruments = session.query(Instrument).filter(Instrument.symbol.in_(symbols)).all()
+                instrument_map = {inst.symbol: inst.id for inst in instruments}
+
+                if not instrument_map:
+                    self.logger.warning("No matching instruments found for provided tickers")
+                    return False
+
+                tickers_to_add = []
+                for t in tickers:
+                    symbol = t["symbol"]
+                    instrument_id = instrument_map.get(symbol)
+                    if not instrument_id:
+                        continue  # skip if instrument not found
+                    
+                    # safely access and convert lastTime
+                    last_time_str = t.get("lastTime")
+                    last_time = None
+                    if last_time_str:
+                        last_time = datetime.fromisoformat(last_time_str.replace("Z", "+00:00"))
+
+                    ticker_entry = Ticker(
+                        instrument_id=instrument_id,
+                        last=t.get("last"),
+                        lastTime=last_time,
+                        tag=t.get("tag"),
+                        pair=t.get("pair"),
+                        markPrice=t.get("markPrice"),
+                        bid=t.get("bid"),
+                        bidSize=t.get("bidSize"),
+                        ask=t.get("ask"),
+                        askSize=t.get("askSize"),
+                        vol24h=t.get("vol24h"),
+                        volumeQuote=t.get("volumeQuote"),
+                        openInterest=t.get("openInterest"),
+                        open24h=t.get("open24h"),
+                        high24h=t.get("high24h"),
+                        low24h=t.get("low24h"),
+                        lastSize=t.get("lastSize"),
+                        fundingRate=t.get("fundingRate"),
+                        fundingRatePrediction=t.get("fundingRatePrediction"),
+                        suspended=t.get("suspended"),
+                        indexPrice=t.get("indexPrice"),
+                        postOnly=t.get("postOnly"),
+                        change24h=t.get("change24h"),
+                    )
+                    tickers_to_add.append(ticker_entry)
+
+                # Bulk insert new rows (append mode)
+                session.bulk_save_objects(tickers_to_add)
+                session.commit()
+
+                self.logger.info(f"Appended {len(tickers_to_add)} new ticker rows")
+                return True
+
+            except SQLAlchemyError as e:
+                session.rollback()
+                self.logger.error(f"Failed to append tickers: {e}")
+                return False
 
 
 

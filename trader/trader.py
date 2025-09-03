@@ -23,10 +23,10 @@ class Trader:
         """
         self.logger.info("Starting Momentum strategy")
 
-        df = pd.DataFrame(data)
+        df = pd.DataFrame([data])
         # lastTime, open24h, high24h, low24h, last, vol24h
-        df["close"] = df["close"].astype(float)
-        df["volume"] = df["volume"].astype(float)
+        df["close"] = df["last"].astype(float)
+        df["volume"] = df["vol24h"].astype(float)
 
         # calc RSI
         window_rsi = 14
@@ -35,7 +35,7 @@ class Trader:
         loss = (-delta.where(delta < 0, 0)).rolling(window=window_rsi).mean()
         rs = gain / loss
         df["RSI"] = 100 - (100 / (1 + rs))
-        self.logger.info(f"RSI calculated: {df["RSI"]}")
+        self.logger.info(f"RSI calculated: \n{df["RSI"]}")
 
         # calc MACD
         short_window = 12
@@ -45,7 +45,7 @@ class Trader:
         df["EMA_long"] = df["close"].ewm(span=long_window, adjust=False).mean()
         df["MACD"] = df["EMA_short"] - df["EMA_long"]
         df["Signal"] = df["MACD"].ewm(span=signal_window, adjust=False).mean()
-        self.logger.info(f"MACD calculated: {df["Signal"]}")
+        self.logger.info(f"MACD calculated: \n{df["Signal"]}")
 
 
         # filter low volume
