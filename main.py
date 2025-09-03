@@ -96,7 +96,8 @@ def initialize_database(data_handler, exchange, log):
 
     log.info("Database initialization completed successfully.")
 
-def live_trading(data_handler, exchange, log):
+def live_trading(data_handler, exchange, trader, log):
+    # smarter to concurently call each api or in-line?
     """
     Live trading polling: Refresh only neccecesary data, minmize latency
     1. Instrument status: poll frequently for dislocations / volatility
@@ -106,10 +107,9 @@ def live_trading(data_handler, exchange, log):
     """
     # fetch all instruments
     try:
-        instruments = data_handler.get_instruments()
-        print(instruments.head)
+        instruments = data_handler.get_instruments() #df
     except Exception as e:
-        log.warning(f"Failed to fetch statuses: {e}")
+        log.warning(f"Failed to fetch instruments: {e}")
 
     # 1. Instrument status
     try:
@@ -128,15 +128,33 @@ def live_trading(data_handler, exchange, log):
     except Exception as e:
         log.warning(f"Failed to fetch and save tickers: {e}")
 
+    # 3/4. Order book + trades refresh
+    # can def optimize; don't loop per instrument
     for inst in instruments:
-        symbol = inst.get("symbol")
+        symbol = inst["symbol"]
         try:
             order_book = exchange.get_order_book(symbol)
             data_handler.save_order_book(symbol, order_book)
+
+            trades = exchange.get_trade_history(symbol)
+            data_handler.save_trade_history(symbol, trades)
         except Exception as e:
-            log.warning(f"Failed to fetch order book for {symbol}: {e}")
+            log.warning(f"Failed to fetch order book and trades for {symbol}: {e}")
             continue
 
+    # expects keys: time, open, high, low, close, volume
+
+def live_trading_test(data_handler, exchange, trader, log):
+    log.info("Starting LT test...")
+    # Need last 100 tickers for one symbol (testing)
+    # And orderbook (for liquidity check)
+
+    # Fetch all instruments; just get top one for testing
+    try:
+        instruments = data_handler.get_instruments() #df
+        print(instruments[0]['symbol'])
+    except Exception as e:
+        log.warning(f"Failed to fetch instruments: {e}")
 
 def main():
     # Init logger
@@ -145,20 +163,17 @@ def main():
     # Init exchange + data
     exchange = ExchangeWrapper(log)
     data_handler = DataHandler(DATABASE_URL, log)
+    trader = Trader(exchange, log)
 
-    # initialize_database(data_handler, exchange, log)\
-    live_trading(data_handler, exchange, log)
+    # init db
+    # initialize_database(data_handler, exchange, log)
 
-    # df = data_handler.get_historical_data(SYMBOL, TIMEFRAME, limit=200)
 
-    # Apply strategy
-    # strategy = MovingAverageStrategy(short_window=10, long_window=30, logger=log)
-    # df = strategy.generate_signals(df)
-    # last_signal = df.iloc[-1]["signal"]
+    # call every __ min
+    # live_trading(data_handler, exchange, trader, log)
+    live_trading_test(data_handler, exchange, trader, log)
 
-    # # Execute trade
-    # trader = Trader(exchange, log)
-    # trader.execute_signal(SYMBOL, last_signal)
+
 
 if __name__ == "__main__":
     main()
@@ -186,6 +201,15 @@ if __name__ == "__main__":
 # 3. Order books: only needed for depth/liquidity analysis
 # 4. Instrument status: rarely needed unless simulating trading restrictions
 #   loop through all of these per instrument for a massive dataset
+
+# -----------------------------
+# DATA FLOW
+# api -> exchange_wrapper as JSON
+# exchange_wrapper -> main as JSON
+# main -> data_handler as JSON
+# main -> trader as df
+
+
 
 
 # COMPONENTS

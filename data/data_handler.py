@@ -432,68 +432,75 @@ class DataHandler:
             data = []
             for inst in instruments:
                 row = {
+                    # figure out what to drop post strategy dev
                     "id": inst.id,
                     "symbol": inst.symbol,
                     "type": inst.type,
                     "underlying": inst.underlying,
                     "tradeable": inst.tradeable,
-
                     "tickSize": inst.tickSize,
                     "contractSize": inst.contractSize,
                     "impactMidSize": inst.impactMidSize,
                     "maxPositionSize": inst.maxPositionSize,
                     "openingDate": inst.openingDate,
                     "fundingRateCoefficient": inst.fundingRateCoefficient,
-                    "maxRelativeFundingRate": inst.tradeable,
-
-                    
-
-                    # "lastTime": inst.lastTime,
-                    # "tag": inst.tag,
-                    # "tradeable": inst.tradeable,
+                    "maxRelativeFundingRate": inst.maxRelativeFundingRate,
+                    "lastTradingTime": inst.lastTradingTime,
+                    "contractValueTradePrecision": inst.contractValueTradePrecision,
+                    "postOnly": inst.postOnly,
+                    "mtf": inst.mtf,
+                    "base": inst.base,
+                    "quote": inst.quote,
+                    "pair": inst.pair,
+                    "category": inst.category,
+                    "tags": inst.tags,
+                    "tradfi": inst.tradfi,
+                    "marginLevels": inst.marginLevels,
+                    "retailMarginLevels": inst.retailMarginLevels,
+                    "marginSchedules": inst.marginSchedules,
+                    "created_at": inst.created_at
                 }
 
                 # If relationship exists, add index info
                 if inst.index_id:
                     print(inst.index_id)
-                    # row["indices"] = [idx.symbol for idx in inst.indices]
+                    row['index'] = True
                 else:
-                    row["indices"] = None
+                    row["index"] = False
 
                 data.append(row)
 
-            df = pd.DataFrame(data)
-            return df
+            return data
 
 
 
-    def add_trade(self, trade_data: dict):
-        """Insert a trade into trade_history"""
-        with self.Session() as session:
-            trade = TradeHistory(**trade_data)
-            session.add(trade)
-            try:
-                session.commit()
-                self.logger.info("Added trade data")
+    # def add_trade(self, trade_data: dict):
+    #     """Insert a trade into trade_history"""
+    #     with self.Session() as session:
+    #         trade = TradeHistory(**trade_data)
+    #         session.add(trade)
+    #         try:
+    #             session.commit()
+    #             self.logger.info("Added trade data")
 
-            except Exception:
-                session.rollback()  # ignore duplicate constraint
-            return trade
+    #         except Exception:
+    #             session.rollback()  # ignore duplicate constraint
+    #         return trade
 
-    def get_trades_df(self, symbol: str):
-        """Load trades into a pandas DataFrame"""
-        import pandas as pd
-        with self.Session() as session:
-            inst = session.query(Instrument).filter_by(symbol=symbol).first()
-            if not inst:
-                return pd.DataFrame()
-            trades = session.query(TradeHistory).filter_by(instrument_id=inst.instrument_id).all()
-            df = pd.DataFrame([{
-                "timestamp": t.timestamp,
-                "side": t.side,
-                "price": float(t.price),
-                "size": float(t.size)
-            } for t in trades])
-            self.logger.info("Loaded trade data")
+    # def get_trades_df(self, symbol: str):
+    #     """Load trades into a pandas DataFrame"""
+    #     import pandas as pd
+    #     with self.Session() as session:
+    #         inst = session.query(Instrument).filter_by(symbol=symbol).first()
+    #         if not inst:
+    #             return pd.DataFrame()
+    #         trades = session.query(TradeHistory).filter_by(instrument_id=inst.instrument_id).all()
+    #         df = pd.DataFrame([{
+    #             "timestamp": t.timestamp,
+    #             "side": t.side,
+    #             "price": float(t.price),
+    #             "size": float(t.size)
+    #         } for t in trades])
+    #         self.logger.info("Loaded trade data")
 
-            return df.sort_values("timestamp")
+    #         return df.sort_values("timestamp")

@@ -1,3 +1,6 @@
+import pandas as pd
+
+
 class Trader:
     """Takes a signal (+ additional rules) and decides whether to place an order via exchange_wrapper"""
 
@@ -6,12 +9,79 @@ class Trader:
         self.logger = logger
         self.logger.info("Initialized Trader")
 
+	# 1. Momentum Investing (short-term RSI, MACD, Volume indicators)
+	# 	○ Easiest to start: Kraken provides OHLCV (candles), which is enough.
+	# 	○ Implement with RSI (oversold/overbought signals) or MACD crossovers.
+	# 	○ Good way to learn backtesting and live execution.
+
+
+    def momentum(self, data, symbol, amount=0.001):
+        """
+        RSI: Buy if <30 (oversold), sell if >70 (overbought)
+        MACD: Buy if line crosses above signal line, vice-versa
+        Volume: Used to confirm signals; only if volume is above average
+        """
+        self.logger.info("Starting Momentum strategy")
+
+
+        # --- Step 1: Convert to DataFrame ---
+        df = pd.DataFrame(data)  # expects keys: time, open, high, low, close, volume
+        df["close"] = df["close"].astype(float)
+        df["volume"] = df["volume"].astype(float)
+
+        # --- Step 2: RSI calculation ---
+        window_rsi = 14
+        delta = df["close"].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=window_rsi).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=window_rsi).mean()
+        rs = gain / loss
+        df["RSI"] = 100 - (100 / (1 + rs))
+
+        # --- Step 3: MACD calculation ---
+        short_window = 12
+        long_window = 26
+        signal_window = 9
+        df["EMA_short"] = df["close"].ewm(span=short_window, adjust=False).mean()
+        df["EMA_long"] = df["close"].ewm(span=long_window, adjust=False).mean()
+        df["MACD"] = df["EMA_short"] - df["EMA_long"]
+        df["Signal"] = df["MACD"].ewm(span=signal_window, adjust=False).mean()
+
+        # --- Step 4: Volume filter ---
+        df["vol_avg"] = df["volume"].rolling(window=20).mean()
+
+        # --- Step 5: Generate signals ---
+        signal = 0  # 1 = buy, -1 = sell, 0 = hold
+        latest = df.iloc[-1]
+
+        # RSI signal
+        if latest["RSI"] < 30:
+            signal = 1
+        elif latest["RSI"] > 70:
+            signal = -1
+
+        # MACD confirmation
+        if latest["MACD"] > latest["Signal"]:
+            if signal == 1:  # only confirm buy if MACD supports it
+                signal = 1
+        elif latest["MACD"] < latest["Signal"]:
+            if signal == -1:  # only confirm sell if MACD supports it
+                signal = -1
+
+        # Volume confirmation
+        if latest["volume"] < latest["vol_avg"]:
+            signal = 0  # no trade if volume too low
+
+        # --- Step 6: Execute trade if signal exists ---
+        return self.execute_signal(symbol, signal, amount)
+
+
+
     def execute_signal(self, symbol, signal, amount=0.001):
         if signal == 1:
-            print("Buying...")
+            print(f"Buying {symbol}...")
             return self.exchange.create_order(symbol, "buy", amount)
         elif signal == -1:
-            print("Selling...")
+            print(f"Selling {symbol}...")
             return self.exchange.create_order(symbol, "sell", amount)
         else:
             print("No trade signal")
