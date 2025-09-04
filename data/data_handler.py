@@ -487,9 +487,6 @@ class DataHandler:
 
 
 
-
-
-
     # GETS
     
     def get_instruments(self):
@@ -543,7 +540,51 @@ class DataHandler:
                 data.append(row)
 
             return data
+    
+    def get_tickers(self, symbol):
+        with self.Session() as session:
+            instrument = (
+                session.query(Instrument)
+                .options(joinedload(Instrument.tickers))
+                .filter(Instrument.symbol == symbol)
+                .one_or_none()
+            )
 
+            if instrument:
+
+                data = []
+                tickers = instrument.tickers
+                for tick in tickers:
+                    row = {
+                        "timestamp": tick.timestamp,
+                        "last": tick.last,
+                        "lastTime": tick.lastTime,
+                        "markPrice": tick.markPrice,
+                        "bid": tick.bid,
+                        "bidSize": tick.bidSize,
+                        "ask": tick.ask,
+                        "askSize": tick.askSize,
+                        "open24h": tick.open24h,
+                        "high24h": tick.high24h,
+                        "low24h": tick.low24h,
+                        "lastSize": tick.lastSize,
+                        "indexPrice": tick.indexPrice,
+                        "vol24h": tick.vol24h,
+                        "volumeQuote": tick.volumeQuote,
+                        "openInterest": tick.openInterest,
+                        "fundingRate": tick.fundingRate,
+                        "fundingRatePrediction": tick.fundingRatePrediction,
+                        "change24h": tick.change24h,
+                        "suspended": tick.suspended,
+                        "postOnly": tick.postOnly,
+                        "tag": tick.tag,
+                        "pair": tick.pair,
+                    }
+                    data.append(row)
+                return data
+            
+            self.logger.info(f"Could not find matching instrument for symbol: {symbol}")
+            return None
 
 
     # def add_trade(self, trade_data: dict):

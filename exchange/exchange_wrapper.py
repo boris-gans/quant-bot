@@ -8,7 +8,7 @@ from config.settings import KRAKEN_API_KEY, KRAKEN_API_SECRET, EXCHANGE
 class ExchangeWrapper:
     """Unified exchange wrapper for Kraken Futures (and others via ccxt)."""
 
-    BASE_URL = "https://futures.kraken.com/derivatives/api/v3"  # Market Data API root
+    BASE_URL = "https://demo-futures.kraken.com/derivatives/api/v3"  # Market Data API root
 
     def __init__(self, logger, exchange_name=EXCHANGE):
         self.exchange_name = exchange_name
@@ -18,6 +18,8 @@ class ExchangeWrapper:
 
     def _init_exchange(self):
         exchange_class = getattr(ccxt, self.exchange_name)
+
+
         return exchange_class({
             "apiKey": KRAKEN_API_KEY,
             "secret": KRAKEN_API_SECRET,

@@ -197,6 +197,36 @@ def live_trading_test(data_handler, exchange, trader, log):
         log.warning(f"Failed to generate and execute signals for {symbol}: {e}")
 
 
+def strategy_test(data_handler, trader, log):
+        log.info("Starting strat test...")
+        # Need last 100 tickers for one symbol (testing)
+        # And orderbook (for liquidity check)
+
+        ohlcv_keys = ["lastTime", "open24h", "high24h", "low24h", "last", "vol24h"]
+        df = pd.DataFrame(columns=ohlcv_keys)
+        window_rsi = 14
+
+        # just get top one for testing
+        try:
+            symbol = data_handler.get_instruments()[0]["symbol"]
+            tickers_list = data_handler.get_tickers(symbol)
+        except Exception as e:
+            log.warning(f"Failed to establish symbol: {e}")
+
+
+        for tick in tickers_list:
+            ohclv_data = {k: tick[k] for k in ohlcv_keys if k in tick}
+            new_row = pd.DataFrame([ohclv_data])
+            df = pd.concat([df, new_row])
+        log.info(f"Loaded {len(tickers_list)} ticker(s) into memory")
+
+
+        try:
+            trader.momentum(df, symbol, window_rsi)
+        except Exception as e:
+            log.warning(f"Failed to generate and execute signals for {symbol}: {e}")
+
+
 def main():
     try:
         # Init logger
@@ -213,7 +243,8 @@ def main():
 
         # call every __ min
         # live_trading(data_handler, exchange, trader, log)
-        live_trading_test(data_handler, exchange, trader, log)
+        # live_trading_test(data_handler, exchange, trader, log)
+        strategy_test(data_handler, trader, log)
     except KeyboardInterrupt:
         log.info(f"\nKeyboard interrupt received. Shutting down...")
     finally:

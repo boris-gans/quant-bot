@@ -15,7 +15,7 @@ class Trader:
 	# 	○ Good way to learn backtesting and live execution.
 
 
-    def momentum(self, data, symbol, window_rsi=14, amount=0.001):
+    def momentum(self, data, symbol, window_rsi=14, amount=1.00):
         """
         RSI: Buy if <30 (oversold), sell if >70 (overbought)
         MACD: Buy if line crosses above signal line, vice-versa
@@ -24,11 +24,16 @@ class Trader:
         self.logger.info(f"Starting Momentum strategy for: {symbol}")
         self.logger.info(f"{data}")
 
-        df = pd.DataFrame([data])
+        if len(data) <= window_rsi:
+            window_rsi = len(data) - 1
+            self.logger.info(f"Too few rows, setting window_rsi to: {window_rsi}")
+        window_rsi = 5
+
+        df = pd.DataFrame(data)
         # lastTime, open24h, high24h, low24h, last, vol24h
 
         df['lastTime'] = pd.to_datetime(df['lastTime'])
-        df.set_index('timestamp', inplace=True)
+        df.set_index('lastTime', inplace=True)
 
         # fix d-types
         df["close"] = df["last"].astype(float)
@@ -37,34 +42,38 @@ class Trader:
         # resample to 1-minute candles
         candles = df['last'].resample('1T').ohlc()
         candles['volume'] = df['volume'].resample('1T').sum()
+        candles.fillna(method="ffill", inplace=True)
 
+        self.logger.info(f"{candles}")
+        # 2025-09-04 13:15:00  111064.0  111064.0  111064.0  111064.0  509112.0
+        # 2025-09-04 13:16:00  111050.5  111050.5  111050.5  111050.5  510705.0
 
 
         # calc RSI
-        delta = df["close"].diff()
+        delta = candles["close"].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=window_rsi).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=window_rsi).mean()
         rs = gain / loss
-        df["RSI"] = 100 - (100 / (1 + rs))
-        self.logger.info(f"RSI calculated: \n{df["RSI"]}")
+        candles["RSI"] = 100 - (100 / (1 + rs))
+        self.logger.info(f"RSI calculated: \n{candles["RSI"]}")
 
         # calc MACD
         short_window = 12
         long_window = 26
         signal_window = 9
-        df["EMA_short"] = df["close"].ewm(span=short_window, adjust=False).mean()
-        df["EMA_long"] = df["close"].ewm(span=long_window, adjust=False).mean()
-        df["MACD"] = df["EMA_short"] - df["EMA_long"]
-        df["Signal"] = df["MACD"].ewm(span=signal_window, adjust=False).mean()
-        self.logger.info(f"MACD calculated: \n{df["Signal"]}")
+        candles["EMA_short"] = candles["close"].ewm(span=short_window, adjust=False).mean()
+        candles["EMA_long"] = candles["close"].ewm(span=long_window, adjust=False).mean()
+        candles["MACD"] = candles["EMA_short"] - candles["EMA_long"]
+        candles["Signal"] = candles["MACD"].ewm(span=signal_window, adjust=False).mean()
+        self.logger.info(f"MACD calculated: \n{candles["Signal"]}")
 
 
         # filter low volume
-        df["vol_avg"] = df["volume"].rolling(window=20).mean()
+        candles["vol_avg"] = candles["volume"].rolling(window=20).mean()
 
         # Generate signals
         signal = 0  # 1 = buy, -1 = sell, 0 = hold
-        latest = df.iloc[-1]
+        latest = candles.iloc[-1]
 
 
         if latest["RSI"] < 30:
@@ -87,7 +96,7 @@ class Trader:
 
 
 
-    def execute_signal(self, symbol, signal, amount=0.001):
+    def execute_signal(self, symbol, signal, amount=1.00):
         if signal == 1:
             print(f"Buying {symbol}...")
             return self.exchange.create_order(symbol, "buy", amount)
