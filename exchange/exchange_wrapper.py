@@ -109,6 +109,9 @@ class ExchangeWrapper:
         try:
             response = requests.get(endpoint)
             response.raise_for_status()
+            res = response.json()
+            self.logger.info(f"Ticker with timestamp: {res['ticker'].get("lastTime")}")
+            return res
             return response.json()
         except Exception as e:
             self.logger.exception("Failed to fetch market data")

@@ -19,6 +19,7 @@ def initialize_database(data_handler, exchange, log):
     5. Get order books
     """
     log.info("Starting database initialization...")
+    return #safety to not clear db
 
     # 1. Instruments
     try:
@@ -48,11 +49,7 @@ def initialize_database(data_handler, exchange, log):
     # 3. Tickers
     # All instruments
     try:
-        # Get ticker list normally, but keeping ticker table small for testing
-        symbol = data_handler.get_instruments()[0]["symbol"]
-        ticker = exchange.get_ticker(symbol)
-
-        # ticker = exchange.get_ticker_list()
+        ticker = exchange.get_ticker_list()
         data_handler.save_tickers(ticker)
     except Exception as e:
         log.warning(f"Failed to fetch and save tickers: {e}")
@@ -158,7 +155,6 @@ def live_trading_test(data_handler, exchange, trader, log):
     # Fetch a selection of instruments; just get top one for testing
     try:
         symbol = data_handler.get_instruments()[0]["symbol"]
-        print(symbol)
     except Exception as e:
         log.warning(f"Failed to establish symbol: {e}")
 
@@ -166,7 +162,8 @@ def live_trading_test(data_handler, exchange, trader, log):
     last_timestamp = None
     
     while unique_count < window_rsi:
-        time.sleep(60) # wait 1 min for tickers to refresh
+        if unique_count != 0:
+            time.sleep(60) # wait 1 min for tickers to refresh
 
         try:
             ticker_data = exchange.get_ticker(symbol)['ticker']
@@ -201,21 +198,26 @@ def live_trading_test(data_handler, exchange, trader, log):
 
 
 def main():
-    # Init logger
-    log = Logger().get_logger()
+    try:
+        # Init logger
+        log = Logger().get_logger()
 
-    # Init exchange + data
-    exchange = ExchangeWrapper(log)
-    data_handler = DataHandler(DATABASE_URL, log)
-    trader = Trader(exchange, log)
+        # Init exchange + data
+        exchange = ExchangeWrapper(log)
+        data_handler = DataHandler(DATABASE_URL, log)
+        trader = Trader(exchange, log)
 
-    # init db
-    initialize_database(data_handler, exchange, log)
+        # init db
+        # initialize_database(data_handler, exchange, log)
 
 
-    # call every __ min
-    # live_trading(data_handler, exchange, trader, log)
-    live_trading_test(data_handler, exchange, trader, log)
+        # call every __ min
+        # live_trading(data_handler, exchange, trader, log)
+        live_trading_test(data_handler, exchange, trader, log)
+    except KeyboardInterrupt:
+        log.info(f"\nKeyboard interrupt received. Shutting down...")
+    finally:
+        log.info("Shutdown")
 
 
 

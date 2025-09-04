@@ -26,8 +26,19 @@ class Trader:
 
         df = pd.DataFrame([data])
         # lastTime, open24h, high24h, low24h, last, vol24h
+
+        df['lastTime'] = pd.to_datetime(df['lastTime'])
+        df.set_index('timestamp', inplace=True)
+
+        # fix d-types
         df["close"] = df["last"].astype(float)
         df["volume"] = df["vol24h"].astype(float)
+
+        # resample to 1-minute candles
+        candles = df['last'].resample('1T').ohlc()
+        candles['volume'] = df['volume'].resample('1T').sum()
+
+
 
         # calc RSI
         delta = df["close"].diff()
