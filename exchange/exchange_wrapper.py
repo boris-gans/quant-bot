@@ -4,6 +4,13 @@ from config.settings import KRAKEN_API_KEY, KRAKEN_API_SECRET, EXCHANGE
 
 # kraken derivatives (sandbox) api docs: https://docs.kraken.com/api/docs/futures-api/trading/market-data
 
+# no demo-futures support in ccxt, only krakenfutures
+class KrakenFuturesDemo(ccxt.krakenfutures):
+    def describe(self):
+        desc = super().describe()
+        desc['urls']['api']['public'] = 'https://demo-futures.kraken.com/derivatives/api/v3'
+        desc['urls']['api']['private'] = 'https://demo-futures.kraken.com/derivatives/api/v3'
+        return desc
 
 class ExchangeWrapper:
     """Unified exchange wrapper for Kraken Futures (and others via ccxt)."""
@@ -13,18 +20,28 @@ class ExchangeWrapper:
     def __init__(self, logger, exchange_name=EXCHANGE):
         self.exchange_name = exchange_name
         self.exchange = self._init_exchange()
+        self.exchange.urls['api']['public'] = 'https://demo-futures.kraken.com/derivatives/api/v3'
+        self.exchange.urls['api']['private'] = 'https://demo-futures.kraken.com/derivatives/api/v3'
+
         self.logger = logger
         self.logger.info(f"Initialized ExchangeWrapper for exchange {self.exchange_name}")
 
     def _init_exchange(self):
-        exchange_class = getattr(ccxt, self.exchange_name)
+        # exchange_class = getattr(ccxt, self.exchange_name)
+        # return exchange_class({
+        #     "apiKey": KRAKEN_API_KEY,
+        #     "secret": KRAKEN_API_SECRET,
+        #     "enableRateLimit": True,
+        # })
 
-
-        return exchange_class({
+        exchange_class = KrakenFuturesDemo({
             "apiKey": KRAKEN_API_KEY,
             "secret": KRAKEN_API_SECRET,
-            "enableRateLimit": True
+            "enableRateLimit": True,
         })
+        return exchange_class
+
+
 
     # -----------------------
     # Generic ccxt methods
