@@ -6,6 +6,7 @@ from config.settings import SYMBOL, TIMEFRAME, DATABASE_URL
 from utils.logger import Logger
 import sys
 import pandas as pd
+import time
 
 
 def initialize_database(data_handler, exchange, log):
@@ -45,10 +46,13 @@ def initialize_database(data_handler, exchange, log):
 
 
     # 3. Tickers
-
     # All instruments
     try:
-        ticker = exchange.get_ticker_list()
+        # Get ticker list normally, but keeping ticker table small for testing
+        symbol = data_handler.get_instruments()[0]["symbol"]
+        ticker = exchange.get_ticker(symbol)
+
+        # ticker = exchange.get_ticker_list()
         data_handler.save_tickers(ticker)
     except Exception as e:
         log.warning(f"Failed to fetch and save tickers: {e}")
@@ -83,8 +87,6 @@ def initialize_database(data_handler, exchange, log):
         except Exception as e:
             log.warning(f"Failed to fetch order book for {symbol}: {e}")
             continue
-
-    # CALL LIVE_TRADING FROM HERE? OR RETURN INSTRUMENTS
 
     # Single instrument
     # try:
@@ -150,9 +152,10 @@ def live_trading_test(data_handler, exchange, trader, log):
     # And orderbook (for liquidity check)
 
     ohlcv_keys = ["lastTime", "open24h", "high24h", "low24h", "last", "vol24h"]
+    df = pd.DataFrame(columns=ohlcv_keys)
     window_rsi = 14
 
-    # Fetch all instruments; just get top one for testing
+    # Fetch a selection of instruments; just get top one for testing
     try:
         symbol = data_handler.get_instruments()[0]["symbol"]
         print(symbol)
@@ -163,19 +166,36 @@ def live_trading_test(data_handler, exchange, trader, log):
     last_timestamp = None
     
     while unique_count < window_rsi:
+        time.sleep(60) # wait 1 min for tickers to refresh
 
         try:
             ticker_data = exchange.get_ticker(symbol)['ticker']
             ohclv_data = {k: ticker_data[k] for k in ohlcv_keys if k in ticker_data}
-            log.info(f"Candle obtained")
-            print(ohclv_data)
+
+            current_ts = ticker_data.get("lastTime")
+            if not current_ts:
+                continue
+                # skip if no ts
+            log.info(f"Ts comp {current_ts}:{last_timestamp}")
+            
+            if current_ts != last_timestamp:
+                last_timestamp = current_ts
+                unique_count += 1
+
+                new_row = pd.DataFrame([ohclv_data])
+                df = pd.concat([df, new_row], ignore_index=True)
+
+                data_handler.append_ticker(ticker_data, symbol)
+                log.info(f"Added new candle {unique_count}/{window_rsi}: {ohclv_data}")
+            else:
+                log.info("Duplicate candle, waiting for next...")
 
             # order_data = exchange.get_order_book(symbol)
         except Exception as e:
-            log.warning(f"Failed to fetch data for instrument: {e}")
+            log.warning(f"Failed to fetch ticker data for instrument: {e}")
 
     try:
-        trader.momentum(ohclv_data, symbol, window_rsi)
+        trader.momentum(df, symbol, window_rsi)
     except Exception as e:
         log.warning(f"Failed to generate and execute signals for {symbol}: {e}")
 
@@ -190,7 +210,7 @@ def main():
     trader = Trader(exchange, log)
 
     # init db
-    # initialize_database(data_handler, exchange, log)
+    initialize_database(data_handler, exchange, log)
 
 
     # call every __ min

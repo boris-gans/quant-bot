@@ -21,7 +21,8 @@ class Trader:
         MACD: Buy if line crosses above signal line, vice-versa
         Volume: Used to confirm signals; only if volume is above average
         """
-        self.logger.info("Starting Momentum strategy")
+        self.logger.info(f"Starting Momentum strategy for: {symbol}")
+        self.logger.info(f"{data}")
 
         df = pd.DataFrame([data])
         # lastTime, open24h, high24h, low24h, last, vol24h

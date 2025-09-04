@@ -412,75 +412,72 @@ class DataHandler:
                 self.logger.error(f"Failed to save order book for {symbol}: {e}")
                 return False
 
-    def append_tickers(self, ticker_data: dict):
+    def append_ticker(self, ticker_data: dict, symbol: str):
+        """
+        Used to append single candles to DB for a symbol
+        Called  from main.py ; NOT WITH EXCHANGE DATA
+        """
         with self.Session() as session:
             try:
-                tickers = []
+                # tickers = []
 
-                # Handles both get_ticker and get_ticker_list
-                if "ticker" in ticker_data:
-                    tickers = [ticker_data["ticker"]]
-                elif "tickers" in ticker_data:
-                    tickers = ticker_data["tickers"]
+                # # Handles single and multiple ticker appends
+                # if "ticker" in ticker_data:
+                #     tickers = [ticker_data["ticker"]]
+                # elif "tickers" in ticker_data:
+                #     tickers = ticker_data["tickers"]
 
-                if not tickers:
-                    self.logger.warning("No ticker data to save")
-                    return False
+                # if not tickers:
+                #     self.logger.warning("No ticker data to save")
+                #     return False
 
                 # Map symbols to instrument IDs
-                symbols = [t["symbol"] for t in tickers if t.get("symbol")]
-                instruments = session.query(Instrument).filter(Instrument.symbol.in_(symbols)).all()
-                instrument_map = {inst.symbol: inst.id for inst in instruments}
+                # symbols = [t["symbol"] for t in ticker_data if t.get("symbol")]
+                instrument = session.query(Instrument).filter(Instrument.symbol == symbol).first()
 
-                if not instrument_map:
-                    self.logger.warning("No matching instruments found for provided tickers")
+
+                if not instrument:
+                    self.logger.warning(f"No matching instrument found for provided symbol: {symbol}")
                     return False
 
-                tickers_to_add = []
-                for t in tickers:
-                    symbol = t["symbol"]
-                    instrument_id = instrument_map.get(symbol)
-                    if not instrument_id:
-                        continue  # skip if instrument not found
                     
-                    # safely access and convert lastTime
-                    last_time_str = t.get("lastTime")
-                    last_time = None
-                    if last_time_str:
-                        last_time = datetime.fromisoformat(last_time_str.replace("Z", "+00:00"))
+                # safely access and convert lastTime
+                last_time_str = ticker_data.get("lastTime")
+                last_time = None
+                if last_time_str:
+                    last_time = datetime.fromisoformat(last_time_str.replace("Z", "+00:00"))
 
-                    ticker_entry = Ticker(
-                        instrument_id=instrument_id,
-                        last=t.get("last"),
-                        lastTime=last_time,
-                        tag=t.get("tag"),
-                        pair=t.get("pair"),
-                        markPrice=t.get("markPrice"),
-                        bid=t.get("bid"),
-                        bidSize=t.get("bidSize"),
-                        ask=t.get("ask"),
-                        askSize=t.get("askSize"),
-                        vol24h=t.get("vol24h"),
-                        volumeQuote=t.get("volumeQuote"),
-                        openInterest=t.get("openInterest"),
-                        open24h=t.get("open24h"),
-                        high24h=t.get("high24h"),
-                        low24h=t.get("low24h"),
-                        lastSize=t.get("lastSize"),
-                        fundingRate=t.get("fundingRate"),
-                        fundingRatePrediction=t.get("fundingRatePrediction"),
-                        suspended=t.get("suspended"),
-                        indexPrice=t.get("indexPrice"),
-                        postOnly=t.get("postOnly"),
-                        change24h=t.get("change24h"),
-                    )
-                    tickers_to_add.append(ticker_entry)
+                ticker_entry = Ticker(
+                    instrument_id=instrument.id,
+                    last=ticker_data.get("last"),
+                    lastTime=last_time,
+                    # tag=t.get("tag"),
+                    # pair=t.get("pair"),
+                    # markPrice=t.get("markPrice"),
+                    # bid=t.get("bid"),
+                    # bidSize=t.get("bidSize"),
+                    # ask=t.get("ask"),
+                    # askSize=t.get("askSize"),
+                    vol24h=ticker_data.get("vol24h"),
+                    # volumeQuote=t.get("volumeQuote"),
+                    # openInterest=t.get("openInterest"),
+                    open24h=ticker_data.get("open24h"),
+                    high24h=ticker_data.get("high24h"),
+                    low24h=ticker_data.get("low24h"),
+                    # lastSize=t.get("lastSize"),
+                    # fundingRate=t.get("fundingRate"),
+                    # fundingRatePrediction=t.get("fundingRatePrediction"),
+                    # suspended=t.get("suspended"),
+                    # indexPrice=t.get("indexPrice"),
+                    # postOnly=t.get("postOnly"),
+                    # change24h=t.get("change24h"),
+                )
 
                 # Bulk insert new rows (append mode)
-                session.bulk_save_objects(tickers_to_add)
+                session.add(ticker_entry)
                 session.commit()
 
-                self.logger.info(f"Appended {len(tickers_to_add)} new ticker rows")
+                self.logger.info(f"Appended new ticker row for: {symbol}")
                 return True
 
             except SQLAlchemyError as e:
