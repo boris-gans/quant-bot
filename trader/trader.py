@@ -99,10 +99,24 @@ class Trader:
     def execute_signal(self, symbol, signal, amount=1.00):
         if signal == 1:
             print(f"Buying {symbol}...")
-            return self.exchange.create_order(symbol, "buy", amount)
+            # return self.exchange.create_order(symbol, "buy", amount)
+            params = {
+                "orderType": "mkt",
+                "symbol": symbol,
+                "side": "buy",
+                "size": amount,
+            }
+            return self.exchange.private_request(endpoint_path="/sendorder", params=params)
         elif signal == -1:
             print(f"Selling {symbol}...")
-            return self.exchange.create_order(symbol, "sell", amount)
+            params = {
+                "orderType": "mkt",
+                "symbol": symbol,
+                "side": "buy",
+                "size": amount,
+            }
+            return self.exchange.private_request(endpoint_path="/sendorder", params=params)
+            # return self.exchange.create_order(symbol, "sell", amount)
         else:
             print("No trade signal")
             return None

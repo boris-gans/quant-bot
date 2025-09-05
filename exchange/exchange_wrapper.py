@@ -1,16 +1,17 @@
 import ccxt
 import requests
+import base64
+import hashlib
+import hmac
+import time
 from config.settings import KRAKEN_API_KEY, KRAKEN_API_SECRET, EXCHANGE
+
 
 # kraken derivatives (sandbox) api docs: https://docs.kraken.com/api/docs/futures-api/trading/market-data
 
 # no demo-futures support in ccxt, only krakenfutures
-class KrakenFuturesDemo(ccxt.krakenfutures):
-    def describe(self):
-        desc = super().describe()
-        desc['urls']['api']['public'] = 'https://demo-futures.kraken.com/derivatives/api/v3'
-        desc['urls']['api']['private'] = 'https://demo-futures.kraken.com/derivatives/api/v3'
-        return desc
+# need to create a custom function to generate auth strings
+
 
 class ExchangeWrapper:
     """Unified exchange wrapper for Kraken Futures (and others via ccxt)."""
@@ -20,26 +21,59 @@ class ExchangeWrapper:
     def __init__(self, logger, exchange_name=EXCHANGE):
         self.exchange_name = exchange_name
         self.exchange = self._init_exchange()
-        self.exchange.urls['api']['public'] = 'https://demo-futures.kraken.com/derivatives/api/v3'
-        self.exchange.urls['api']['private'] = 'https://demo-futures.kraken.com/derivatives/api/v3'
-
         self.logger = logger
         self.logger.info(f"Initialized ExchangeWrapper for exchange {self.exchange_name}")
 
     def _init_exchange(self):
-        # exchange_class = getattr(ccxt, self.exchange_name)
-        # return exchange_class({
-        #     "apiKey": KRAKEN_API_KEY,
-        #     "secret": KRAKEN_API_SECRET,
-        #     "enableRateLimit": True,
-        # })
-
-        exchange_class = KrakenFuturesDemo({
+        exchange_class = getattr(ccxt, self.exchange_name)
+        return exchange_class({
             "apiKey": KRAKEN_API_KEY,
             "secret": KRAKEN_API_SECRET,
             "enableRateLimit": True,
         })
-        return exchange_class
+    
+
+    # custom helper for demo-kraken (paper trading only)
+    def _get_authent(self, post_data, nonce, endpoint_path):
+        """Generate the Kraken Futures authent header."""
+
+        message = post_data + nonce + endpoint_path
+        sha256_hash = hashlib.sha256(message.encode("utf-8")).digest()
+        secret_bytes = base64.b64decode(KRAKEN_API_SECRET)
+        hmac512 = hmac.new(secret_bytes, sha256_hash, hashlib.sha512).digest()
+
+        return base64.b64encode(hmac512).decode()
+
+
+# see: https://github.com/CryptoFacilities/REST-v3-Python/blob/master/cfRestApiV3.py#L32
+    def private_request(self, endpoint_path, params=None):
+        """Send private request to Kraken Futures API."""
+        if params is None:
+            params = {}
+
+
+        nonce = str(int(time.time() * 1000))
+        post_data = "&".join(f"{k}={v}" for k, v in params.items()) if params else ""
+        authent = self._get_authent(post_data, nonce, endpoint_path)
+
+        url = f"{self.BASE_URL}{endpoint_path}"
+
+        headers = {
+            "APIKey": KRAKEN_API_KEY,
+            "Authent": authent,
+            "Nonce": nonce,
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+
+        self.logger.info(f"Requesting {endpoint_path} with url: \n{url} \nHeaders:\n{headers}")
+
+        response = requests.post(url, headers=headers, data=post_data)
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            self.logger.error(f"Request failed [{response.status_code}]: {response.text}")
+            response.raise_for_status()
 
 
 

@@ -222,7 +222,8 @@ def strategy_test(data_handler, trader, log):
 
 
         try:
-            trader.momentum(df, symbol, window_rsi)
+            res = trader.momentum(df, symbol, window_rsi)
+            log.info(f"Result:\n{res}")
         except Exception as e:
             log.warning(f"Failed to generate and execute signals for {symbol}: {e}")
 
