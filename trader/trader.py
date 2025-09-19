@@ -100,23 +100,38 @@ class Trader:
         if signal == 1:
             print(f"Buying {symbol}...")
             # return self.exchange.create_order(symbol, "buy", amount)
-            params = {
-                "orderType": "mkt",
-                "symbol": symbol,
-                "side": "buy",
-                "size": amount,
-            }
-            return self.exchange.private_request(endpoint_path="/sendorder", params=params)
+            # params = {
+            #     "orderType": "mkt",
+            #     "symbol": symbol,
+            #     "side": "buy",
+            #     "size": amount,
+            # }
+
+            endpoint = "/api/auth/v1/api-keys/v3/check"
+            params = {}
+
+            # endpoint = "/api/v3/sendorder"
+            # params = {
+            #     "orderType": "mkt",
+            #     "symbol": symbol,
+            #     "side": "buy",
+            #     "size": amount,
+            #     # "limitPrice": limit_price,
+            # }
+
+            return self.exchange.private_request(endpoint_path=endpoint, params=params)
+ 
         elif signal == -1:
-            print(f"Selling {symbol}...")
-            params = {
-                "orderType": "mkt",
-                "symbol": symbol,
-                "side": "buy",
-                "size": amount,
-            }
-            return self.exchange.private_request(endpoint_path="/sendorder", params=params)
+            # print(f"Selling {symbol}...")
+            # params = {
+            #     "orderType": "mkt",
+            #     "symbol": symbol,
+            #     "side": "buy",
+            #     "size": amount,
+            # }
+            # return self.exchange.private_request(endpoint_path="/sendorder", params=params)
             # return self.exchange.create_order(symbol, "sell", amount)
+            print(signal)
         else:
             print("No trade signal")
             return None

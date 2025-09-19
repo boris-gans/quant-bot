@@ -16,8 +16,10 @@ from config.settings import KRAKEN_API_KEY, KRAKEN_API_SECRET, EXCHANGE
 class ExchangeWrapper:
     """Unified exchange wrapper for Kraken Futures (and others via ccxt)."""
 
-    BASE_URL = "https://demo-futures.kraken.com/derivatives/api/v3"  # Market Data API root
+    # BASE_URL = "https://demo-futures.kraken.com/derivatives"  # Market Data API root
+    BASE_URL = "https://futures.kraken.com/derivatives"  # Market Data API root
 
+# /api/v3/orderbook
     def __init__(self, logger, exchange_name=EXCHANGE):
         self.exchange_name = exchange_name
         self.exchange = self._init_exchange()
@@ -34,23 +36,30 @@ class ExchangeWrapper:
     
 
     # custom helper for demo-kraken (paper trading only)
-    def _get_authent(self, post_data, nonce, endpoint_path):
-        """Generate the Kraken Futures authent header."""
 
+    def _get_authent(self, post_data, nonce, endpoint_path):
+        """
+        Generate Kraken Futures 'Authent' header for private endpoints.
+        Docs: https://docs.kraken.com/api/docs/futures-api/authentication
+        """
         message = post_data + nonce + endpoint_path
         sha256_hash = hashlib.sha256(message.encode("utf-8")).digest()
         secret_bytes = base64.b64decode(KRAKEN_API_SECRET)
         hmac512 = hmac.new(secret_bytes, sha256_hash, hashlib.sha512).digest()
-
+        print(f"Message: {message}, Sha256: {sha256_hash} Secret_bytes: {secret_bytes} Hmac: {hmac512}")
         return base64.b64encode(hmac512).decode()
 
+    # private request wrapper
+    def private_request(self, endpoint_path, params=None, method="POST"):
+        """
+        Send private request to Kraken Futures API (sandbox or live).
 
-# see: https://github.com/CryptoFacilities/REST-v3-Python/blob/master/cfRestApiV3.py#L32
-    def private_request(self, endpoint_path, params=None):
-        """Send private request to Kraken Futures API."""
+        :param endpoint_path: API endpoint after /derivatives (/api/v3/____)'
+        :param params: dict of parameters to send
+        :param method: "POST" or "GET"
+        """
         if params is None:
             params = {}
-
 
         nonce = str(int(time.time() * 1000))
         post_data = "&".join(f"{k}={v}" for k, v in params.items()) if params else ""
@@ -61,19 +70,75 @@ class ExchangeWrapper:
         headers = {
             "APIKey": KRAKEN_API_KEY,
             "Authent": authent,
-            "Nonce": nonce,
+            # "Nonce": nonce,
             "Content-Type": "application/x-www-form-urlencoded"
         }
 
-        self.logger.info(f"Requesting {endpoint_path} with url: \n{url} \nHeaders:\n{headers}")
+        self.logger.info(f"Request {method} {url} with params: {params}")
+        self.logger.info(f"Authent: {authent}")
 
-        response = requests.post(url, headers=headers, data=post_data)
+        
+
+        # POST or GET depending on endpoint
+        if method.upper() == "POST":
+            response = requests.post(url, headers=headers, data=post_data)
+        else:
+            full_url = f"{url}?{post_data}" if post_data else url
+            response = requests.get(full_url, headers=headers)
 
         if response.status_code == 200:
             return response.json()
         else:
             self.logger.error(f"Request failed [{response.status_code}]: {response.text}")
             response.raise_for_status()
+
+    # ------------------------------------------------------------
+    # 🔹 Example: Place an order
+    # ------------------------------------------------------------
+    # def place_order(self, symbol, side, size, limit_price):
+    #     """
+    #     Example method: Place a post-only limit order.
+    #     """
+    #     endpoint = "/sendorder"
+    #     params = {
+    #         "orderType": "post",
+    #         "symbol": symbol,
+    #         "side": side,
+    #         "size": size,
+    #         "limitPrice": limit_price,
+    #     }
+    #     return self.private_request(endpoint, params, method="POST")
+
+
+# see: https://github.com/CryptoFacilities/REST-v3-Python/blob/master/cfRestApiV3.py#L32
+    # def private_request(self, endpoint_path, params=None):
+    #     """Send private request to Kraken Futures API."""
+    #     if params is None:
+    #         params = {}
+
+
+    #     nonce = str(int(time.time() * 1000))
+    #     post_data = "&".join(f"{k}={v}" for k, v in params.items()) if params else ""
+    #     authent = self._get_authent(post_data, nonce, endpoint_path)
+
+    #     url = f"{self.BASE_URL}{endpoint_path}"
+
+    #     headers = {
+    #         "APIKey": KRAKEN_API_KEY,
+    #         "Authent": authent,
+    #         "Nonce": nonce,
+    #         "Content-Type": "application/x-www-form-urlencoded"
+    #     }
+
+    #     self.logger.info(f"Requesting {endpoint_path} with url: \n{url} \nHeaders:\n{headers}")
+
+    #     response = requests.post(url, headers=headers, data=post_data)
+
+    #     if response.status_code == 200:
+    #         return response.json()
+    #     else:
+    #         self.logger.error(f"Request failed [{response.status_code}]: {response.text}")
+    #         response.raise_for_status()
 
 
 
